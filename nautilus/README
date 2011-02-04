@@ -1,0 +1,20 @@
+TimeBrowse Nautilus Extension
+
+This extension is meant to be used with the Nautilus File Manager,
+
+Requirements:
+    * nautilus
+    * nautilus-python
+
+To install:
+    To install for all users, copy TimeBrowse.py to:
+        /usr/lib/nautilus/extensions-2.0/python
+    
+    To install for a single user, copy TimeBrowse.py to:
+        ~/.nautilus/python-extensions
+    
+    In both cases, you may need to create the python/python-extensions folder.
+    
+    Restart nautilus with the following commands:
+        $ nautilus -q
+        $ nohup nautilus > /dev/null &

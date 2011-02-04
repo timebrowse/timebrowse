@@ -1,0 +1,170 @@
+#!/usr/bin/env python
+#
+#  copyright(c) 2011 - Jiro SEKIBA <jir@unicus.jp>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+
+"""nilfs snapshot manager"""
+
+__author__    = "Jiro SEKIBA"
+__copyright__ = "Copyright (c) 2011 - Jiro SEKIBA <jir@unicus.jp>"
+__license__   = "GPL2"
+
+import nilfs2
+import yaml
+import time
+import os
+import sys
+import argparse
+import gobject
+import daemon
+import daemon.pidlockfile
+import commands
+import syslog
+import signal
+
+class Logger:
+    def __init__(self, indent=False):
+        if indent:
+            self.__indent__ = indent
+            self.out = self.syslog_out
+        else:
+            self.out = self.stderr_out
+
+    def syslog_out(self, prio, string):
+        syslog.openlog(self.__indent__)
+        syslog.syslog(prio, string)
+        syslog.closelog()
+
+    def stderr_out(self, prio, string):
+        print >> sys.stderr, string
+
+class NILFSSSManager:
+    def __init__(self, nilfs, mp, logger):
+        self.ns = nilfs
+        self.mp = mp
+        self.logger = logger
+        self.mounts = []
+
+    def create_dir(self, path):
+        if os.path.exists(path):
+            if not os.path.isdir(path):
+                 info = "path is not directory: %s" % path
+                 self.logger.out(syslog.LOG_CRIT, info)
+                 raise Exception(info)
+        else:
+            os.mkdir(path)
+
+    def do_unmount_all(self):
+        for mp in self.mounts:
+            cmd = 'umount %s' % mp
+            result = commands.getstatusoutput(cmd)
+            if result[0] == 0:
+                cmd = 'rmdir %s' %mp
+                commands.getstatusoutput(cmd)
+            self.logger.out(syslog.LOG_INFO, "unmounted %s" % mp)
+
+    def do_mount(self, cp, t='date'):
+        target = self.mp
+        if t == 'date':
+            local = time.strftime("%Y.%m.%d-%H.%M.%S", cp['date'])
+            target += '/' + local
+        cmd = "mount -t nilfs2 -o ro,cp=%d" % cp['cno']
+        cmd += " " + self.ns.device + " " + target
+        self.create_dir(target)
+        result = commands.getstatusoutput(cmd)
+        if result[0] != 0:
+            self.logger.out(syslog.LOG_CRIT, result[1])
+            raise Exception(result[1])
+        self.mounts.append(target)
+        self.logger.out(syslog.LOG_INFO,
+                        "mount ss = %d on %s" % (cp['cno'],target))
+
+    def create_ss(self):
+        cps = self.ns.lscp()[:]
+        cps.reverse()
+        for cp in cps:
+            if cp['ss']:
+                break
+            self.logger.out(syslog.LOG_INFO,
+                            "create snapshot: ss = %d" % cp['cno'])
+            self.ns.chcp(cp['cno'], True)
+            self.do_mount(cp)
+
+def do_daemon(devs):
+    ns = [ nilfs2.NILFS2(dev) for dev in devs ]
+    ns = zip(ns, devs.values())
+    for n in ns:
+       create_ss(n)
+
+def do_loop(interval, ss_managers):
+    for manager in ss_managers:
+        manager.create_ss()
+    gobject.timeout_add(interval, do_loop, interval, ss_managers)
+
+class NODaemonContext:
+    def __init__(self):
+        pass
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self):
+        pass
+
+def register_sighandlers(managers, mainloop):
+    def do_exit(a,b):
+        for m in managers:
+            m.do_unmount_all()
+        mainloop.quit()
+    signal.signal(signal.SIGINT, do_exit)
+    signal.signal(signal.SIGTERM, do_exit)
+
+logger = Logger()
+try:
+    parser = argparse.ArgumentParser(description="NILFS2 snapshot manager")
+    parser.add_argument("-f", "--conf", dest='conffile',
+                        default = '/etc/nilfs_ss.conf',
+                        metavar = 'config',
+                        help = 'config file')
+    parser.add_argument("-D", dest='daemonize', action='store_const',
+                        default = True, const = False, 
+                        help = 'do not daemonize')
+
+    args = parser.parse_args()
+    conffile = args.conffile
+    daemonize = args.daemonize
+   
+    conf = yaml.safe_load(open(conffile))
+    devices = conf['devices']
+    period = conf['period']
+
+    dc = NODaemonContext()
+    if daemonize:
+        pidfile = conf['pidfile']
+        dc = daemon.DaemonContext(
+                    pidfile=daemon.pidlockfile.PIDLockFile(pidfile))
+        logger = Logger(sys.argv[0])
+
+    managers = [NILFSSSManager(nilfs2.NILFS2(device), devices[device], logger)
+                for device in devices] 
+ 
+    with dc:
+        interval = period * 1000
+        gobject.timeout_add(interval, do_loop, interval, managers)
+        mainloop = gobject.MainLoop()
+        register_sighandlers(managers, mainloop)
+        mainloop.run()
+
+except yaml.scanner.ScannerError:
+    logger.out(syslog.LOG_INFO, "can not parse config file %s" % conffile)
+
+except KeyError:
+    logger.out(syslog.LOG_INFO, "configuration error: %s" % conffile)
+    for key in ['devices', 'period', 'pidfile']:
+        if not key in conf:
+            logger.out(syslog.LOG_INFO,
+                       "'%s' is not in the configuration" % key)

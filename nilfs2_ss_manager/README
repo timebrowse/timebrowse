@@ -1,0 +1,31 @@
+NILFS Snapshot Manager
+----
+
+NILFS Snapshot Manager is a daemon to convert nilfs checkpoints to snapshots
+and mount the snapshots to specified mount points.
+
+NILFS Snapshot  Manager is distributed in two parts.  The first part is the
+NILFS2 python module that provides the functionality to manage nilfs2 volumes.
+The other part is the daemon script which keep track of the nilfs2 checkpoints.
+If checkpoints are created, it converts it to snapshot then mount the
+snapshot to specified directory.
+
+Require:
+    *  python-yaml
+    *  python-daemon
+    *  python-gobject
+
+Install:
+    # python setup.py install
+
+Configure:
+
+After install the scripts, you have to edit the /etc/nilfs2_ss.conf
+to tell the daemon which device is the nilfs volume you want to watch,
+and which directory is the mount point to mount the managed snapshots.
+
+Run:
+    # nilfs2_ss_manager -f <config>
+
+    will start the script in daemon mode.
+    If you want to run without going to daemon mode, you will specify '-D'.
