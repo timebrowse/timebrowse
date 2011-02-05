@@ -42,6 +42,10 @@ class Logger:
     def stderr_out(self, prio, string):
         print >> sys.stderr, string
 
+class NILFSConfigurationExeption(Exception):
+    def __init__(self, errors):
+        self.errors = errors
+
 class NILFSSSManager:
     def __init__(self, nilfs, mp, logger):
         self.ns = nilfs
@@ -123,8 +127,19 @@ def register_sighandlers(managers, mainloop):
     signal.signal(signal.SIGINT, do_exit)
     signal.signal(signal.SIGTERM, do_exit)
 
-logger = Logger()
+def check_configuration(conf):
+    errors = []
+    for key in ['devices', 'period', 'pidfile']:
+        if not key in conf:
+            errors.append("No '%s' key defined" % key)
+        elif not conf[key]:
+            errors.append("'%s' key has no value" % key)
+
+    if len(errors) > 0:
+        raise NILFSConfigurationExeption(errors)
+
 try:
+    logger = Logger()
     parser = argparse.ArgumentParser(description="NILFS2 snapshot manager")
     parser.add_argument("-f", "--conf", dest='conffile',
                         default = '/etc/nilfs_ss.conf',
@@ -139,6 +154,8 @@ try:
     daemonize = args.daemonize
    
     conf = yaml.safe_load(open(conffile))
+    check_configuration(conf)
+
     devices = conf['devices']
     period = conf['period']
 
@@ -159,12 +176,22 @@ try:
         register_sighandlers(managers, mainloop)
         mainloop.run()
 
-except yaml.scanner.ScannerError:
-    logger.out(syslog.LOG_INFO, "can not parse config file %s" % conffile)
+except NILFSConfigurationExeption, e:
+    logger.out(syslog.LOG_ERR, "Configuration error in %s" % conffile)
+    for error in e.errors:
+        logger.out(syslog.LOG_ERR, "  " + error),
 
-except KeyError:
-    logger.out(syslog.LOG_INFO, "configuration error: %s" % conffile)
-    for key in ['devices', 'period', 'pidfile']:
-        if not key in conf:
-            logger.out(syslog.LOG_INFO,
-                       "'%s' is not in the configuration" % key)
+except yaml.YAMLError, e:
+    pos = None
+    if (hasattr(e, 'problem') and hasattr(e, 'context_mark') and
+        hasattr(e, 'problem_mark')):
+        if e.problem_mark is not None:
+            pos = (e.problem_mark.line + 1, e.problem_mark.column + 1)
+        elif e.context_mark is not None:
+            pos = (e.context_mark.line + 1, e.context_mark.column + 1)
+
+    logger.out(syslog.LOG_ERR, "Error" +
+               (" near line %s, column %s" % pos if pos else "") +
+               " while loading " + conffile)
+    if hasattr(e, 'problem') and (e.problem is not None):
+        logger.out(syslog.LOG_ERR, "  Reason: %s" % e.problem)
