@@ -20,7 +20,7 @@ Install:
 
 Configure:
 
-After install the scripts, you have to edit the /etc/nilfs2_ss.conf
+After install the scripts, you have to edit the /etc/nilfs_ss.conf
 to tell the daemon which device is the nilfs volume you want to watch,
 and which directory is the mount point to mount the managed snapshots.
 
