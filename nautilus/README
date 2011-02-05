@@ -4,7 +4,7 @@ This extension is meant to be used with the Nautilus File Manager,
 
 Requirements:
     * nautilus
-    * nautilus-python
+    * nautilus-python (python-nautilus in Debian/Ubuntu)
 
 To install:
     To install for all users, copy TimeBrowse.py to:
