@@ -9,5 +9,5 @@ setup(
   py_modules = ['nilfs2'],
   scripts = ['nilfs2_ss_manager'],
   description = 'nilfs2 snapshot manager',
-  data_files = [('/etc', ['nilfs2_ss.conf'])]
+  data_files = [('/etc', ['nilfs_ss.conf'])]
 )
