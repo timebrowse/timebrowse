@@ -1,4 +1,4 @@
-#/usr/bin/env python
+#!/usr/bin/env python
 #
 #  copyright(c) 2011 - Jiro SEKIBA <jir@unicus.jp>
 #
