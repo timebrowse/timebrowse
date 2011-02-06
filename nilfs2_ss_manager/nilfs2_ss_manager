@@ -52,6 +52,7 @@ class NILFSSSManager:
         self.mp = mp
         self.logger = logger
         self.mounts = []
+        self.aborting = 0
 
     def create_dir(self, path):
         if os.path.exists(path):
@@ -71,6 +72,10 @@ class NILFSSSManager:
                 commands.getstatusoutput(cmd)
             self.logger.out(syslog.LOG_INFO, "unmounted %s" % mp)
 
+    def shutdown(self):
+        self.aborting = 1
+        self.do_unmount_all()
+
     def do_mount(self, cp, t='date'):
         target = self.mp
         if t == 'date':
@@ -88,9 +93,12 @@ class NILFSSSManager:
                         "mount ss = %d on %s" % (cp['cno'],target))
 
     def create_ss(self):
+        if self.aborting: return
         cps = self.ns.lscp()[:]
         cps.reverse()
         for cp in cps:
+            if self.aborting:
+                break
             if cp['ss']:
                 break
             self.logger.out(syslog.LOG_INFO,
@@ -122,7 +130,7 @@ class NODaemonContext:
 def register_sighandlers(managers, mainloop):
     def do_exit(a,b):
         for m in managers:
-            m.do_unmount_all()
+            m.shutdown()
         mainloop.quit()
     signal.signal(signal.SIGINT, do_exit)
     signal.signal(signal.SIGTERM, do_exit)
