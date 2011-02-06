@@ -13,12 +13,14 @@ __author__    = "Jiro SEKIBA"
 __copyright__ = "Copyright (c) 2011 - Jiro SEKIBA <jir@unicus.jp>"
 __license__   = "GPL2"
 
+import commands
 import gtk
 import nautilus
 import sys
 import os
 import re
 import gobject
+import glib
 import time
 
 class NILFSException(Exception):
@@ -73,14 +75,37 @@ def list_history(cp_mps, relpath):
             l.append(p)
     return l
 
+def pretty_format(time):
+    if time == 0:
+       return "now"
+    if time < 60:
+        return "%d secs ago" % time
+    time = time/60
+    if time < 60:
+        return "%d minues ago" % time
+    time = time/60
+    if time < 24:
+        return "%d hours ago" % time
+    time = time/24
+    if time < 30:
+        return "%d days ago" % time
+    m = time/30
+    if m < 30:
+        return "%d months ago" % m
+    y = time/365
+    return "%d years ago" % y
+
 def filter_by_mtime(current, history):
-    #last_mtime = os.stat(current).st_mtime
-    last_mtime = os.stat(current).st_mtime
+    current_time = os.stat(current).st_mtime
+    last_mtime = current_time
     l = []
     for f in history:
-        mtime = os.stat(f).st_mtime
+        stat = os.stat(f)
+        mtime = stat.st_mtime
         if last_mtime != mtime:
-            l.append({'path' : f, 'mtime' : mtime})
+            size = str(stat.st_size)
+            l.append({'path' : f, 'mtime' : mtime, 'size' : size,
+                      'ago' : pretty_format(current_time - mtime)})
         last_mtime = mtime
     return l
 
@@ -100,31 +125,94 @@ def get_history(path):
 
     return []
 
-
 def create_list_gui(history):
     store = gtk.ListStore(gobject.TYPE_STRING,
+                          gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
                           gobject.TYPE_STRING,)
     store.clear()
 
     for e in history:
-        store.append([time.strftime("%Y.%m.%d-%H.%M.%S",
-                                    time.localtime(e['mtime'])),
-                      "black", e['path']])
+        store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
+                                               time.localtime(e['mtime'])),
+                      e['size'], e['ago']])
 
     tree = gtk.TreeView()
     tree.set_model(store)
 
     rederer = gtk.CellRendererText()
-    column = gtk.TreeViewColumn("date", rederer, text=0, foreground=1)
+    column = gtk.TreeViewColumn("date", rederer, text=1, foreground=1)
     tree.append_column(column)
-    column = gtk.TreeViewColumn("path", rederer, text=2, foreground=1)
+    column = gtk.TreeViewColumn("size", rederer, text=2, foreground=1)
     tree.append_column(column)
+    column = gtk.TreeViewColumn("ago", rederer, text=3, foreground=1)
+    tree.append_column(column)
+
 
     scroll = gtk.ScrolledWindow()
     scroll.add(tree)
 
-    return scroll
+    frame = gtk.Frame("History")
+    frame.set_shadow_type(gtk.SHADOW_ETCHED_IN)
+    frame.add(scroll)
+
+    vbox = gtk.VBox(False, 0)
+    vbox.pack_start(frame)
+
+    hbox = gtk.HBox(False, 0)
+    button = gtk.Button("Copy To Desktop")
+    hbox.pack_end(button, False, False, 10);
+    vbox.pack_start(hbox, False, False, 5);
+
+    def get_selected_path(info):
+        select = info.get_selection()
+        rows = select.get_selected_rows()
+        if len(rows[1]) == 0:
+            return False
+        row = rows[1][0][0]
+        model = info.get_model()
+        itr = model.get_iter(row)
+        v = model.get_value(itr, 0)
+        return v
+
+    def copy_to_desktop(widget, info):
+        source = get_selected_path(info)
+        if not source:
+            return
+
+        basename = os.path.basename(source)
+        desktop = glib.get_user_special_dir(glib.USER_DIRECTORY_DESKTOP)
+        dest = desktop + "/" + basename
+
+        copy = True
+        if os.path.exists(dest):
+            dialog = gtk.Dialog("Confirm", None, gtk.DIALOG_MODAL,
+                                ("OK", True, "Cancel", False))
+            t = "file"
+            if os.path.isdir(dest):
+                t = "directory"
+            elif os.path.islink(dest):
+                t = "link"
+  
+            message = "There is already a %s with the same name" % t
+            message += " in the Desktop.\n"
+            message += "Replace it?"
+            label = gtk.Label(message)
+            label.show()
+            dialog.vbox.pack_start(label)
+            copy = dialog.run()
+        
+            dialog.destroy()
+
+        if copy:
+            line = "rm -rf %s" % dest
+            result = commands.getstatusoutput(line)
+            line = "cp -a %s %s" % (source, desktop)
+            result = commands.getstatusoutput(line)
+
+    button.connect("clicked", copy_to_desktop, tree)
+
+    return vbox
 
 class NILFS2PropertyPage(nautilus.PropertyPageProvider):
     def __init__(self):
@@ -143,18 +231,11 @@ class NILFS2PropertyPage(nautilus.PropertyPageProvider):
         if len(history) == 0:
             return
 
-        tree = create_list_gui(history)
         self.property_label = gtk.Label("History")
         self.property_label.show()
 
-        frame = gtk.Frame("History")
-        frame.set_shadow_type(gtk.SHADOW_ETCHED_IN)
-        frame.add(tree)
-
-        self.vbox = gtk.VBox(0, False)
-        self.vbox.pack_start(frame)
+        self.vbox = create_list_gui(history)
         self.vbox.show_all()
-
 
         return nautilus.PropertyPage("NautilusPython::nilfs2",
                                      self.property_label, self.vbox),
