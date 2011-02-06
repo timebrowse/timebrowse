@@ -63,18 +63,44 @@ class NILFSSSManager:
         else:
             os.mkdir(path)
 
-    def do_unmount_all(self):
+    def do_unmount_all(self, busy=[], failed=[]):
         for mp in self.mounts:
             cmd = 'umount %s' % mp
             result = commands.getstatusoutput(cmd)
             if result[0] == 0:
-                cmd = 'rmdir %s' %mp
+                cmd = 'rmdir %s' % mp
                 commands.getstatusoutput(cmd)
-            self.logger.out(syslog.LOG_INFO, "unmounted %s" % mp)
+                self.logger.out(syslog.LOG_INFO, "unmounted %s" % mp)
+            elif result[0] == 256:
+                self.logger.out(syslog.LOG_INFO,
+                                "failed to unmount %s (busy)" % mp)
+                busy.append(mp)
+            else:
+                self.logger.out(syslog.LOG_WARNING,
+                                "failed to unmount %s (status=%d)" %
+                                (mp, result[0]))
+                failed.append(mp)
+        self.mounts = busy
+
+    def unmount_all(self):
+        busy = []
+        failed = []
+        self.do_unmount_all(busy, failed)
+
+        retrycount = 2
+        interval = 1
+        while busy and retrycount > 0:
+            self.logger.out(syslog.LOG_INFO,
+                            "Retrying unmount (wait=%ds)" % interval)
+            time.sleep(interval)
+            busy = []
+            self.do_unmount_all(busy, failed)
+            interval <<= 1
+            retrycount -= 1
 
     def shutdown(self):
         self.aborting = 1
-        self.do_unmount_all()
+        self.unmount_all()
 
     def do_mount(self, cp, t='date'):
         target = self.mp
