@@ -150,7 +150,7 @@ class NODaemonContext:
     def __enter__(self):
         pass
 
-    def __exit__(self):
+    def __exit__(self, *excinfo):
         pass
 
 def register_sighandlers(managers, mainloop):
