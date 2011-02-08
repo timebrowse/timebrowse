@@ -132,12 +132,6 @@ class NILFSSSManager:
             self.ns.chcp(cp['cno'], True)
             self.do_mount(cp)
 
-def do_daemon(devs):
-    ns = [ nilfs2.NILFS2(dev) for dev in devs ]
-    ns = zip(ns, devs.values())
-    for n in ns:
-       create_ss(n)
-
 def do_loop(interval, ss_managers):
     for manager in ss_managers:
         manager.create_ss()
