@@ -82,7 +82,7 @@ def pretty_format(time):
         return "%d secs ago" % time
     time = time/60
     if time < 60:
-        return "%d minues ago" % time
+        return "%d minutes ago" % time
     time = time/60
     if time < 24:
         return "%d hours ago" % time
