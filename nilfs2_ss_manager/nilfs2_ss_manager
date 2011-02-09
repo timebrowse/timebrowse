@@ -53,6 +53,14 @@ class NILFSSSManager:
         self.logger = logger
         self.mounts = []
         self.aborting = 0
+        self.mount_ss()
+
+    def mount_ss(self):
+        cps = self.ns.lscp()[:]
+        cps.reverse()
+        for cp in cps:
+            if cp['ss']:
+                self.do_mount(cp)
 
     def create_dir(self, path):
         if os.path.exists(path):
