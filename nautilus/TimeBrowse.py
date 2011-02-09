@@ -188,9 +188,19 @@ def create_list_gui(history):
         if os.path.exists(dest):
             dialog = gtk.Dialog("Confirm", None, gtk.DIALOG_MODAL,
                                 ("OK", True, "Cancel", False))
+            style = gtk.Style()
+
+            icon = style.lookup_icon_set(gtk.STOCK_FILE)
+            pix = icon.render_icon(style, gtk.TEXT_DIR_NONE, gtk.STATE_NORMAL,
+                                   gtk.ICON_SIZE_DIALOG, None, None)
+
             t = "file"
             if os.path.isdir(dest):
                 t = "directory"
+                icon = style.lookup_icon_set(gtk.STOCK_DIRECTORY)
+                pix = icon.render_icon(style, gtk.TEXT_DIR_NONE,
+                                       gtk.STATE_NORMAL, gtk.ICON_SIZE_DIALOG,
+                                       None, None)
             elif os.path.islink(dest):
                 t = "link"
   
@@ -198,8 +208,16 @@ def create_list_gui(history):
             message += " in the Desktop.\n"
             message += "Replace it?"
             label = gtk.Label(message)
-            label.show()
-            dialog.vbox.pack_start(label)
+
+            image = gtk.image_new_from_pixbuf(pix)
+
+            hbox = gtk.HBox(False, 0)
+            hbox.pack_start(image, False, False, 5)
+            hbox.pack_start(label, False, False, 5)
+            hbox.show_all()
+
+            dialog.vbox.pack_start(hbox)
+
             copy = dialog.run()
         
             dialog.destroy()
