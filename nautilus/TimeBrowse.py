@@ -137,6 +137,21 @@ def get_history(path):
 
     return []
 
+def create_icon_pixbuf(path):
+    style = gtk.Style()
+
+    icon = style.lookup_icon_set(gtk.STOCK_FILE)
+    pix = icon.render_icon(style, gtk.TEXT_DIR_NONE, gtk.STATE_NORMAL,
+                           gtk.ICON_SIZE_DIALOG, None, None)
+
+    if not os.path.islink(path) and os.path.isdir(path):
+        t = "directory"
+        icon = style.lookup_icon_set(gtk.STOCK_DIRECTORY)
+        pix = icon.render_icon(style, gtk.TEXT_DIR_NONE,
+                               gtk.STATE_NORMAL, gtk.ICON_SIZE_DIALOG,
+                               None, None)
+    return pix
+
 def create_list_gui(history):
     store = gtk.ListStore(gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
@@ -200,27 +215,19 @@ def create_list_gui(history):
         if os.path.exists(dest):
             dialog = gtk.Dialog("Confirm", None, gtk.DIALOG_MODAL,
                                 ("OK", True, "Cancel", False))
-            style = gtk.Style()
-
-            icon = style.lookup_icon_set(gtk.STOCK_FILE)
-            pix = icon.render_icon(style, gtk.TEXT_DIR_NONE, gtk.STATE_NORMAL,
-                                   gtk.ICON_SIZE_DIALOG, None, None)
 
             t = "file"
             if os.path.islink(dest):
                 t = "link"
             elif os.path.isdir(dest):
                 t = "directory"
-                icon = style.lookup_icon_set(gtk.STOCK_DIRECTORY)
-                pix = icon.render_icon(style, gtk.TEXT_DIR_NONE,
-                                       gtk.STATE_NORMAL, gtk.ICON_SIZE_DIALOG,
-                                       None, None)
   
             message = "There is already a %s with the same name" % t
             message += " in the Desktop.\n"
             message += "Replace it?"
             label = gtk.Label(message)
 
+            pix = create_icon_pixbuf(dest)
             image = gtk.image_new_from_pixbuf(pix)
 
             hbox = gtk.HBox(False, 0)
