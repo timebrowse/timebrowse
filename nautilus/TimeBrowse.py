@@ -152,6 +152,17 @@ def create_icon_pixbuf(path):
                                None, None)
     return pix
 
+def get_selected_path(treeview):
+    select = treeview.get_selection()
+    rows = select.get_selected_rows()
+    if len(rows[1]) == 0:
+        return False
+    row = rows[1][0][0]
+    model = treeview.get_model()
+    itr = model.get_iter(row)
+    v = model.get_value(itr, 0)
+    return v
+ 
 def create_list_gui(history):
     store = gtk.ListStore(gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
@@ -190,17 +201,6 @@ def create_list_gui(history):
     button = gtk.Button("Copy To Desktop")
     hbox.pack_end(button, False, False, 10);
     vbox.pack_start(hbox, False, False, 5);
-
-    def get_selected_path(info):
-        select = info.get_selection()
-        rows = select.get_selected_rows()
-        if len(rows[1]) == 0:
-            return False
-        row = rows[1][0][0]
-        model = info.get_model()
-        itr = model.get_iter(row)
-        v = model.get_value(itr, 0)
-        return v
 
     def copy_to_desktop(widget, info):
         source = get_selected_path(info)
