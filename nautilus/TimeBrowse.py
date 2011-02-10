@@ -195,14 +195,14 @@ def create_list_gui(history):
                                    gtk.ICON_SIZE_DIALOG, None, None)
 
             t = "file"
-            if os.path.isdir(dest):
+            if os.path.islink(dest):
+                t = "link"
+            elif os.path.isdir(dest):
                 t = "directory"
                 icon = style.lookup_icon_set(gtk.STOCK_DIRECTORY)
                 pix = icon.render_icon(style, gtk.TEXT_DIR_NONE,
                                        gtk.STATE_NORMAL, gtk.ICON_SIZE_DIALOG,
                                        None, None)
-            elif os.path.islink(dest):
-                t = "link"
   
             message = "There is already a %s with the same name" % t
             message += " in the Desktop.\n"
