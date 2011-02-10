@@ -141,11 +141,11 @@ def create_list_gui(history):
     tree.set_model(store)
 
     rederer = gtk.CellRendererText()
-    column = gtk.TreeViewColumn("date", rederer, text=1, foreground=1)
+    column = gtk.TreeViewColumn("date", rederer, text=1)
     tree.append_column(column)
-    column = gtk.TreeViewColumn("size", rederer, text=2, foreground=1)
+    column = gtk.TreeViewColumn("size", rederer, text=2)
     tree.append_column(column)
-    column = gtk.TreeViewColumn("ago", rederer, text=3, foreground=1)
+    column = gtk.TreeViewColumn("ago", rederer, text=3)
     tree.append_column(column)
 
 
