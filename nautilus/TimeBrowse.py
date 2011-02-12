@@ -75,25 +75,30 @@ def list_history(cp_mps, relpath):
             l.append(p)
     return l
 
+def age_repr(val, unit):
+    if int(val) > 1:
+        unit += "s"  # conjugate 'unit' to plural form
+    return "%d %s ago" % (val, unit)
+
 def pretty_format(time):
     if time == 0:
        return "latest"
     if time < 60:
-        return "%d secs ago" % time
+        return age_repr(time, "sec")
     time = time/60
     if time < 60:
-        return "%d minutes ago" % time
+        return age_repr(time, "minute")
     time = time/60
     if time < 24:
-        return "%d hours ago" % time
+        return age_repr(time, "hour")
     time = time/24
     if time < 30:
-        return "%d days ago" % time
+        return age_repr(time, "day")
     m = time/30
     if m < 30:
-        return "%d months ago" % m
+        return age_repr(m, "month")
     y = time/365
-    return "%d years ago" % y
+    return age_repr(y, "year")
 
 def filter_by_mtime(current, history):
     current_time = os.stat(current).st_mtime
