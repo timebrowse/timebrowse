@@ -105,7 +105,7 @@ def filter_by_mtime(current, history):
         if last_mtime != mtime:
             size = str(stat.st_size)
             l.append({'path' : f, 'mtime' : mtime, 'size' : size,
-                      'ago' : pretty_format(current_time - mtime)})
+                      'age' : pretty_format(current_time - mtime)})
         last_mtime = mtime
     return l
 
@@ -135,7 +135,7 @@ def create_list_gui(history):
     for e in history:
         store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
                                                time.localtime(e['mtime'])),
-                      e['size'], e['ago']])
+                      e['size'], e['age']])
 
     tree = gtk.TreeView()
     tree.set_model(store)
@@ -145,7 +145,7 @@ def create_list_gui(history):
     tree.append_column(column)
     column = gtk.TreeViewColumn("size", rederer, text=2)
     tree.append_column(column)
-    column = gtk.TreeViewColumn("ago", rederer, text=3)
+    column = gtk.TreeViewColumn("age", rederer, text=3)
     tree.append_column(column)
 
 
