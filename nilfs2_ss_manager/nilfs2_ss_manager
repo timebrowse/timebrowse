@@ -52,13 +52,14 @@ class NILFSSSManager:
         self.mp = mp
         self.logger = logger
         self.mounts = []
-        self.aborting = 0
-        self.mount_ss()
+        self.aborting = False
 
     def mount_ss(self):
         cps = self.ns.lscp()[:]
         cps.reverse()
         for cp in cps:
+            if self.aborting:
+                break
             if cp['ss']:
                 self.do_mount(cp)
 
@@ -107,7 +108,7 @@ class NILFSSSManager:
             retrycount -= 1
 
     def shutdown(self):
-        self.aborting = 1
+        self.aborting = True
         self.unmount_all()
 
     def do_mount(self, cp, t='date'):
@@ -210,6 +211,8 @@ try:
         gobject.timeout_add(interval, do_loop, interval, managers)
         mainloop = gobject.MainLoop()
         register_sighandlers(managers, mainloop)
+	for manager in managers:
+            manager.mount_ss()
         mainloop.run()
 
 except NILFSConfigurationExeption, e:
