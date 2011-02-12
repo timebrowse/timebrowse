@@ -1,0 +1,6 @@
+nilfs2_ss_manager-v0.2  Sat Feb 12 18:50:58 JST 2011
+	* change default configuration file to nilfs_ss.conf (Ryusuke Konishi)
+	* handle error during loading conffile (Ryusuke Konishi)
+	* stop creating snapshot during shutdown (Ryusuke Konishi)
+	* retry unmount for busy mount points (Ryusuke Konishi)
+	* mount existing snapshots on startup

@@ -1,0 +1,3 @@
+* make sparse snapshots
+* run as dbus service to remove/inquiry snapshots
+* an option not to create snapshots (only mounts created snapshots)
