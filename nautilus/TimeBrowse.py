@@ -77,7 +77,7 @@ def list_history(cp_mps, relpath):
 
 def pretty_format(time):
     if time == 0:
-       return "now"
+       return "latest"
     if time < 60:
         return "%d secs ago" % time
     time = time/60
