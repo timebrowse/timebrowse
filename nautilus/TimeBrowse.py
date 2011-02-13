@@ -76,26 +76,26 @@ def list_history(cp_mps, relpath):
     return l
 
 def age_repr(val, unit):
-    if int(val) > 1:
+    if abs(int(val)) > 1:
         unit += "s"  # conjugate 'unit' to plural form
-    return "%d %s ago" % (val, unit)
+    return "%d %s %s" % (abs(val), unit, "ago" if val > 0 else "later")
 
 def pretty_format(time):
     if time == 0:
        return "latest"
-    if time < 60:
+    if abs(time) < 60:
         return age_repr(time, "sec")
     time = time/60
-    if time < 60:
+    if abs(time) < 60:
         return age_repr(time, "minute")
     time = time/60
-    if time < 24:
+    if abs(time) < 24:
         return age_repr(time, "hour")
     time = time/24
-    if time < 30:
+    if abs(time) < 30:
         return age_repr(time, "day")
     m = time/30
-    if m < 30:
+    if abs(m) < 30:
         return age_repr(m, "month")
     y = time/365
     return age_repr(y, "year")
