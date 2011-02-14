@@ -74,7 +74,7 @@ class NILFSSSManager:
 
     def do_unmount_all(self, busy=[], failed=[]):
         for mp in self.mounts:
-            cmd = 'umount %s' % mp
+            cmd = 'umount -n %s' % mp
             result = commands.getstatusoutput(cmd)
             if result[0] == 0:
                 cmd = 'rmdir %s' % mp
@@ -116,7 +116,7 @@ class NILFSSSManager:
         if t == 'date':
             local = time.strftime("%Y.%m.%d-%H.%M.%S", cp['date'])
             target += '/' + local
-        cmd = "mount -t nilfs2 -o ro,cp=%d" % cp['cno']
+        cmd = "mount -t nilfs2 -n -o ro,cp=%d" % cp['cno']
         cmd += " " + self.ns.device + " " + target
         self.create_dir(target)
         result = commands.getstatusoutput(cmd)

@@ -48,15 +48,17 @@ def find_nilfs_in_mtab():
     # sort by mount point length. the longer, the earlier
     actives.sort(lambda a, b: -cmp(len(a['mp']), len(b['mp'])))
 
-    # Make a dictionary of checkpoints sorted by device name
+    # Make a dictionary of checkpoints sorted by device name from /proc/mounts
     checkpoints = {}
-    for e in entries:
-        if re.match(cp, e[2]):
-            cpinfo = str(e[1]), extract_checkpoint(e[2])
-            if str(e[0]) in checkpoints:
-                checkpoints[str(e[0])].append(cpinfo)
-            else:
-                checkpoints[str(e[0])] = [cpinfo]
+    with open("/proc/mounts") as f:
+        for line in f:
+            m = re.match(regex, line, re.M)
+            if m and re.match(cp, m.group(3)):
+                cpinfo = m.group(2), extract_checkpoint(m.group(3))
+                if m.group(1) in checkpoints:
+                    checkpoints[m.group(1)].append(cpinfo)
+                else:
+                    checkpoints[m.group(1)] = [cpinfo]
 
     # Sort checkpoints by checkpoint number
     for cps in checkpoints.itervalues():
