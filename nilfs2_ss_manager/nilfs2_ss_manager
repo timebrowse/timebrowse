@@ -46,6 +46,15 @@ class NILFSConfigurationExeption(Exception):
     def __init__(self, errors):
         self.errors = errors
 
+def match_fs(path, fsnames):
+    """
+    Get the name of filesystem used on @path and return True if the
+    filesystem name matches one of names in @fsnames.
+    """
+    cmd = 'stat -fc %T ' + path
+    result = commands.getstatusoutput(cmd)
+    return result[0] == 0 and (result[1] in fsnames)
+
 class NILFSSSManager:
     def __init__(self, nilfs, mp, logger):
         self.ns = nilfs
@@ -55,6 +64,9 @@ class NILFSSSManager:
         self.aborting = False
 
     def mount_ss(self):
+        if match_fs(self.mp, ['nilfs', 'nilfs2']):
+            self.mount_tmpfs()
+
         cps = self.ns.lscp()[:]
         cps.reverse()
         for cp in cps:
@@ -107,6 +119,9 @@ class NILFSSSManager:
             interval <<= 1
             retrycount -= 1
 
+        if match_fs(self.mp, ['tmpfs']):
+            self.unmount_tmpfs()
+
     def shutdown(self):
         self.aborting = True
         self.unmount_all()
@@ -140,6 +155,14 @@ class NILFSSSManager:
                             "create snapshot: ss = %d" % cp['cno'])
             self.ns.chcp(cp['cno'], True)
             self.do_mount(cp)
+
+    def mount_tmpfs(self):
+        cmd = 'mount -t tmpfs none ' + self.mp
+        commands.getstatusoutput(cmd)
+
+    def unmount_tmpfs(self):
+        cmd = 'umount -t tmpfs ' + self.mp
+        commands.getstatusoutput(cmd)
 
 def do_loop(interval, ss_managers):
     for manager in ss_managers:
