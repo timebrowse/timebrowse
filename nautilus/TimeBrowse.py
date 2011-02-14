@@ -33,14 +33,14 @@ def extract_checkpoint(option_string):
     return int(a[0])
 
 def find_nilfs_in_mtab():
-    regex=r'^ *([^ ]+) +([^ ]+) +([^ ]+) +([^ ]+) +([^ ]+) +([^ ]+) *$'
+    regex=r'^ *([^ ]+) +([^ ]+) +nilfs2 +([^ ]+) +([^ ]+) +([^ ]+) *$'
     cp=r'.*cp=.*'
     with open("/etc/mtab") as f:
-         a = re.findall(regex, f.read(), re.M)
+         entries = re.findall(regex, f.read(), re.M)
 
-    actives = [{'dev' : os.path.realpath(str(e[0])),
-                'mp'  : os.path.realpath(str(e[1]))}
-                for e in a if e[2] == 'nilfs2' and not re.match(cp, e[3])]
+    # Device paths and mount points in mtab are normalized
+    actives = [{'dev' : str(e[0]), 'mp' : str(e[1])}
+                for e in entries if not re.match(cp, e[2])]
    
     if len(actives) == 0:
         raise NILFSException("can not find active NILFS volume in mtab")
@@ -48,16 +48,25 @@ def find_nilfs_in_mtab():
     # sort by mount point length. the longer, the earlier
     actives.sort(lambda a, b: -cmp(len(a['mp']), len(b['mp'])))
 
-    checkpoints = [{'dev' : os.path.realpath(str(e[0])),
-                    'mp'  : os.path.realpath(str(e[1])),
-                    'cp'  : extract_checkpoint(e[3])}
-                    for e in a if e[2] == 'nilfs2' and re.match(cp, e[3])]
-    # sort by checkpoint number
-    checkpoints.sort(lambda a, b: cmp(a['cp'], b['cp']))
+    # Make a dictionary of checkpoints sorted by device name
+    checkpoints = {}
+    for e in entries:
+        if re.match(cp, e[2]):
+            cpinfo = str(e[1]), extract_checkpoint(e[2])
+            if str(e[0]) in checkpoints:
+                checkpoints[str(e[0])].append(cpinfo)
+            else:
+                checkpoints[str(e[0])] = [cpinfo]
 
-    return [{'mp' : e['mp'],
-             'cps': [c['mp'] for c in checkpoints ]}
-            for e in actives]
+    # Sort checkpoints by checkpoint number
+    for cps in checkpoints.itervalues():
+        cps.sort(lambda a, b: cmp(a[1], b[1]))
+
+    for a in actives:
+        if a['dev'] in checkpoints:
+            a['cps'] = checkpoints[a['dev']]
+
+    return actives
 
 def find_nilfs_mounts(realpath):
     mount_list = find_nilfs_in_mtab()
@@ -67,10 +76,10 @@ def find_nilfs_mounts(realpath):
     raise NILFSException("file not in NILFS volume: %s" % realpath)
 
 
-def list_history(cp_mps, relpath):
+def list_history(cps, relpath):
     l = []
-    for mp in cp_mps:
-        p = mp + '/' + relpath
+    for cp in cps:
+        p = cp[0] + '/' + relpath
         if os.path.exists(p):
             l.append(p)
     return l
