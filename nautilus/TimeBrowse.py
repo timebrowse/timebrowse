@@ -27,11 +27,6 @@ class NILFSException(Exception):
     def __init__(self, info):
         Exception.__init__(self,info)
 
-def extract_checkpoint(option_string):
-    cp=r'.*cp=([\d]+).*'
-    a = re.findall(cp, option_string)
-    return int(a[0])
-
 def find_nilfs_in_mtab():
     regex=r'^ *([^ ]+) +([^ ]+) +nilfs2 +([^ ]+) +([^ ]+) +([^ ]+) *$'
     cp=r'.*cp=.*'
@@ -49,16 +44,17 @@ def find_nilfs_in_mtab():
     actives.sort(lambda a, b: -cmp(len(a['mp']), len(b['mp'])))
 
     # Make a dictionary of checkpoints sorted by device name from /proc/mounts
+    cpregex=r'^ *([^ ]+) +([^ ]+) +nilfs2 +([^ ]*cp=([\d]+)[^ ]*) +([^ ]+) +([^ ]+) *$'
     checkpoints = {}
     with open("/proc/mounts") as f:
-        for line in f:
-            m = re.match(regex, line, re.M)
-            if m and re.match(cp, m.group(3)):
-                cpinfo = m.group(2), extract_checkpoint(m.group(3))
-                if m.group(1) in checkpoints:
-                    checkpoints[m.group(1)].append(cpinfo)
-                else:
-                    checkpoints[m.group(1)] = [cpinfo]
+        ms = re.findall(cpregex, f.read(), re.M)
+        for m in ms:
+            cpinfo = m[1], int(m[3])
+            dev = m[0]
+            if dev in checkpoints:
+                checkpoints[dev].append(cpinfo)
+            else:
+                checkpoints[dev] = [cpinfo]
 
     # Sort checkpoints by checkpoint number
     for cps in checkpoints.itervalues():
