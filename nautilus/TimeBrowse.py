@@ -22,6 +22,7 @@ import re
 import gobject
 import glib
 import time
+import gio
 
 class NILFSException(Exception):
     def __init__(self, info):
@@ -162,7 +163,21 @@ def get_selected_path(treeview):
     itr = model.get_iter(row)
     v = model.get_value(itr, 0)
     return v
- 
+
+def open_with(path):
+    context = gtk.gdk.AppLaunchContext()
+    path = os.path.abspath(path)
+
+    if os.path.isdir(path):
+        path += "/"
+
+    mime_type = gio.content_type_guess(path)
+    app_info = gio.app_info_get_default_for_type(mime_type, False)
+    if app_info != None:
+        app_info.launch([gio.File(path)], context)
+    else:
+        sys.stderr.write('no application related to "%s"\n' % mime_type)
+
 def create_list_gui(history):
     store = gtk.ListStore(gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
@@ -186,6 +201,11 @@ def create_list_gui(history):
     column = gtk.TreeViewColumn("age", rederer, text=3)
     tree.append_column(column)
 
+    def double_clicked(treeview, path, view_column, user):
+        path = get_selected_path(treeview)
+        open_with(path)
+
+    tree.connect("row-activated", double_clicked, None)
 
     scroll = gtk.ScrolledWindow()
     scroll.add(tree)
