@@ -130,10 +130,10 @@ def get_history(path):
         return filter_by_mtime(path, history)
 
     except KeyError, (e):
-        print "configuration is not valid. missig %s key" % e
+        sys.stderr.write("configuration is not valid. missig %s key\n" % e)
 
     except NILFSException, (e):
-        print e
+        sys.stderr.write(str(e) + "\n")
 
     return []
 
