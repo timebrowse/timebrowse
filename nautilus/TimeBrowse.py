@@ -364,13 +364,17 @@ class NILFS2PropertyPage(nautilus.PropertyPageProvider):
 
         history = get_history(f.get_uri()[7:])
 
-        if len(history) == 0:
-            return
-
         self.property_label = gtk.Label("History")
         self.property_label.show()
 
-        self.vbox = create_list_gui(history)
+        if len(history) == 0:
+            vbox = gtk.VBox(False, 0) 
+            label = gtk.Label("no history")
+            vbox.pack_start(label, True, True, 10)
+            self.vbox = vbox
+        else:
+            self.vbox = create_list_gui(history)
+
         self.vbox.show_all()
 
         return nautilus.PropertyPage("NautilusPython::nilfs2",
