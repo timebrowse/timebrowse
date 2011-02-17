@@ -200,6 +200,17 @@ def create_pixbuf(path):
                                None, None)
     return pix
 
+global_thumbnail_cache = {}
+def create_cached_pixbuf(path):
+    if global_thumbnail_cache.has_key(path):
+        return global_thumbnail_cache[path]
+    pix = create_pixbuf(path)
+    w= 100.;
+    h = pix.get_height() * w/ pix.get_width()
+    global_thumbnail_cache[path] = pix.scale_simple(int(w), int(h),
+                                                    gtk.gdk.INTERP_BILINEAR)
+    return global_thumbnail_cache[path]
+
 def create_icon_pixbuf(path):
     pix = create_pixbuf(path)
     w= 48.;
@@ -271,9 +282,24 @@ def create_list_gui(history):
     vbox.pack_start(frame)
 
     hbox = gtk.HBox(False, 0)
+    bbox = gtk.VBox(False, 0)
     button = gtk.Button("Copy To Desktop")
-    hbox.pack_end(button, False, False, 10);
+    bbox.pack_end(button, False, False, 10);
+    hbox.pack_end(bbox, False, False, 10);
+
+    pix = create_cached_pixbuf(history[0]['path'])
+    image = gtk.image_new_from_pixbuf(pix)
+    hbox.pack_start(image, False, False, 20);
+
     vbox.pack_start(hbox, False, False, 5);
+
+    def row_selected(treeview, user):
+        path = get_selected_path(treeview)
+        if path != False:
+            pix = create_cached_pixbuf(path)
+            image.set_from_pixbuf(pix)
+
+    tree.connect("cursor-changed", row_selected, None)
 
     def copy_to_desktop(widget, info):
         source = get_selected_path(info)
