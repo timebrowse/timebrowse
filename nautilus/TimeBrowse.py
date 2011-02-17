@@ -23,6 +23,10 @@ import gobject
 import glib
 import time
 import gio
+import tempfile
+import xml.sax.saxutils
+import evince
+import sx.pisa3 as pisa
 
 class NILFSException(Exception):
     def __init__(self, info):
@@ -138,7 +142,50 @@ def get_history(path):
 
     return []
 
-def create_icon_pixbuf(path):
+def create_thumbnail_pixbuf(path):
+    css = '<style type="text/css"> \
+@page { \
+  size: letter;\
+} \
+pre { \
+  font-size: 32px;\
+} \
+</style>'
+
+    meta = '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />'
+
+    try:
+        document = evince.document_factory_get_document("file://" + path)
+    except glib.GError:
+        res = commands.getstatusoutput("file " + path + "| cut -d: -f 2")
+        text = re.compile(" text( |$)")
+        image = re.compile(" image( |,)")
+        if text.search(res[1]) != None:
+            fd = open(path)
+            contents = fd.read(1024) #generante first page only
+            data = css + meta + '<pre>\n' + \
+                   xml.sax.saxutils.escape(contents) + '\n</pre>'
+            fd.close()
+            fd = tempfile.NamedTemporaryFile('wb', -1, '.pdf',
+                                             'tb', delete=False)
+            pisa.CreatePDF(data, fd)
+            fd.close()
+            f = os.path.abspath(fd.name)
+            document = evince.document_factory_get_document("file://" + f)
+            os.remove(f)
+        elif image.search(res[1]) != None:
+            return gtk.gdk.pixbuf_new_from(path)
+        else:
+            return None
+
+    context = evince.RenderContext(document.get_page(0), 0, 1)
+    return evince.DocumentThumbnails.get_thumbnail(document, context, 1)
+
+def create_pixbuf(path):
+    pix = create_thumbnail_pixbuf(path)
+    if pix != None:
+        return pix
+
     style = gtk.Style()
 
     icon = style.lookup_icon_set(gtk.STOCK_FILE)
@@ -152,6 +199,12 @@ def create_icon_pixbuf(path):
                                gtk.STATE_NORMAL, gtk.ICON_SIZE_DIALOG,
                                None, None)
     return pix
+
+def create_icon_pixbuf(path):
+    pix = create_pixbuf(path)
+    w= 48.;
+    h = pix.get_height() * w/ pix.get_width()
+    return pix.scale_simple(int(w), int(h), gtk.gdk.INTERP_BILINEAR)
 
 def get_selected_path(treeview):
     select = treeview.get_selection()
