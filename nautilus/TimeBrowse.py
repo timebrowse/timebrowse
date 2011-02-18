@@ -258,6 +258,48 @@ def open_with(path):
     else:
         sys.stderr.write('no application related to "%s"\n' % mime_type)
 
+def copy_to_desktop(source, icon_factory):
+    basename = os.path.basename(source)
+    desktop = glib.get_user_special_dir(glib.USER_DIRECTORY_DESKTOP)
+    dest = desktop + "/" + basename
+
+    copy = True
+    if os.path.exists(dest):
+        dialog = gtk.Dialog("Confirm", None, gtk.DIALOG_MODAL,
+                            ("OK", True, "Cancel", False))
+
+        t = "file"
+        if os.path.islink(dest):
+            t = "link"
+        elif os.path.isdir(dest):
+            t = "directory"
+
+        message = "There is already a %s with the same name" % t
+        message += " in the Desktop.\n"
+        message += "Replace it?"
+        label = gtk.Label(message)
+
+        pix = icon_factory.icon_pixbuf(dest)
+        image = gtk.image_new_from_pixbuf(pix)
+
+        hbox = gtk.HBox(False, 0)
+        hbox.pack_start(image, False, False, 5)
+        hbox.pack_start(label, False, False, 5)
+        hbox.show_all()
+
+        dialog.vbox.pack_start(hbox)
+
+        copy = dialog.run()
+    
+        dialog.destroy()
+
+    if copy:
+        line = "rm -rf %s" % dest
+        result = commands.getstatusoutput(line)
+        line = "cp -a %s %s" % (source, desktop)
+        result = commands.getstatusoutput(line)
+
+
 def create_list_gui(history, icon_factory):
     store = gtk.ListStore(gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
@@ -317,52 +359,13 @@ def create_list_gui(history, icon_factory):
 
     tree.connect("cursor-changed", row_selected, None)
 
-    def copy_to_desktop(widget, info):
+    def copy_to_desktop_button_clicked(widget, info):
         source = get_selected_path(info)
         if not source:
             return
+        copy_to_desktop(source, icon_factory)
 
-        basename = os.path.basename(source)
-        desktop = glib.get_user_special_dir(glib.USER_DIRECTORY_DESKTOP)
-        dest = desktop + "/" + basename
-
-        copy = True
-        if os.path.exists(dest):
-            dialog = gtk.Dialog("Confirm", None, gtk.DIALOG_MODAL,
-                                ("OK", True, "Cancel", False))
-
-            t = "file"
-            if os.path.islink(dest):
-                t = "link"
-            elif os.path.isdir(dest):
-                t = "directory"
-  
-            message = "There is already a %s with the same name" % t
-            message += " in the Desktop.\n"
-            message += "Replace it?"
-            label = gtk.Label(message)
-
-            pix = icon_factory.icon_pixbuf(dest)
-            image = gtk.image_new_from_pixbuf(pix)
-
-            hbox = gtk.HBox(False, 0)
-            hbox.pack_start(image, False, False, 5)
-            hbox.pack_start(label, False, False, 5)
-            hbox.show_all()
-
-            dialog.vbox.pack_start(hbox)
-
-            copy = dialog.run()
-        
-            dialog.destroy()
-
-        if copy:
-            line = "rm -rf %s" % dest
-            result = commands.getstatusoutput(line)
-            line = "cp -a %s %s" % (source, desktop)
-            result = commands.getstatusoutput(line)
-
-    button.connect("clicked", copy_to_desktop, tree)
+    button.connect("clicked", copy_to_desktop_button_clicked, tree)
 
     return vbox
 
