@@ -32,115 +32,119 @@ class NILFSException(Exception):
     def __init__(self, info):
         Exception.__init__(self,info)
 
-def find_nilfs_in_mtab():
-    regex=r'^ *([^ ]+) +([^ ]+) +nilfs2 +([^ ]+) +([^ ]+) +([^ ]+) *$'
-    cp=r'.*cp=.*'
-    with open("/etc/mtab") as f:
-         entries = re.findall(regex, f.read(), re.M)
+class NILFSMounts:
+    def __init__(self):
+        self.nilfs_entry_regex = re.compile('^ *([^ ]+) +([^ ]+) +nilfs2 +([^ ]+) +([^ ]+) +([^ ]+) *$', re.M)
+        self.cp_regex = re.compile('.*cp=.*')
+        self.nilfs_cp_entry_regex = re.compile('^ *([^ ]+) +([^ ]+) +nilfs2 +([^ ]*cp=([\d]+)[^ ]*) +([^ ]+) +([^ ]+) *$', re.M)
 
-    # Device paths and mount points in mtab are normalized
-    actives = [{'dev' : str(e[0]), 'mp' : str(e[1])}
-                for e in entries if not re.match(cp, e[2])]
+    def find_nilfs_in_mtab(self):
+        with open("/etc/mtab") as f:
+            entries = self.nilfs_entry_regex.findall(f.read())
+
+        # Device paths and mount points in mtab are normalized
+        actives = [{'dev' : str(e[0]), 'mp' : str(e[1])}
+                    for e in entries if not self.cp_regex.match(e[2])]
    
-    if len(actives) == 0:
-        raise NILFSException("can not find active NILFS volume in mtab")
+        if len(actives) == 0:
+            raise NILFSException("can not find active NILFS volume in mtab")
 
-    # sort by mount point length. the longer, the earlier
-    actives.sort(lambda a, b: -cmp(len(a['mp']), len(b['mp'])))
+        # sort by mount point length. the longer, the earlier
+        actives.sort(lambda a, b: -cmp(len(a['mp']), len(b['mp'])))
 
-    # Make a dictionary of checkpoints sorted by device name from /proc/mounts
-    cpregex=r'^ *([^ ]+) +([^ ]+) +nilfs2 +([^ ]*cp=([\d]+)[^ ]*) +([^ ]+) +([^ ]+) *$'
-    checkpoints = {}
-    with open("/proc/mounts") as f:
-        ms = re.findall(cpregex, f.read(), re.M)
-        for m in ms:
-            cpinfo = m[1], int(m[3])
-            dev = m[0]
-            if dev in checkpoints:
-                checkpoints[dev].append(cpinfo)
-            else:
-                checkpoints[dev] = [cpinfo]
+        # Make a dictionary of checkpoints sorted by device name
+        # from /proc/mounts
+        checkpoints = {}
+        with open("/proc/mounts") as f:
+            ms = self.nilfs_cp_entry_regex.findall(f.read())
+            for m in ms:
+                cpinfo = m[1], int(m[3])
+                dev = m[0]
+                if dev in checkpoints:
+                    checkpoints[dev].append(cpinfo)
+                else:
+                    checkpoints[dev] = [cpinfo]
 
-    # Sort checkpoints by checkpoint number
-    for cps in checkpoints.itervalues():
-        cps.sort(lambda a, b: cmp(a[1], b[1]))
+        # Sort checkpoints by checkpoint number
+        for cps in checkpoints.itervalues():
+            cps.sort(lambda a, b: cmp(a[1], b[1]))
 
-    for a in actives:
-        if a['dev'] in checkpoints:
-            a['cps'] = checkpoints[a['dev']]
+        for a in actives:
+            if a['dev'] in checkpoints:
+                a['cps'] = checkpoints[a['dev']]
 
-    return actives
+        return actives
 
-def find_nilfs_mounts(realpath):
-    mount_list = find_nilfs_in_mtab()
-    for e in mount_list:
-        if realpath.startswith(e['mp']):
-            return e 
-    raise NILFSException("file not in NILFS volume: %s" % realpath)
+    def find_nilfs_mounts(self, realpath):
+        mount_list = self.find_nilfs_in_mtab()
+        for e in mount_list:
+            if realpath.startswith(e['mp']):
+                return e 
+        raise NILFSException("file not in NILFS volume: %s" % realpath)
 
 
-def list_history(cps, relpath):
-    l = []
-    for cp in cps:
-        p = cp[0] + '/' + relpath
-        if os.path.exists(p):
-            l.append(p)
-    return l
+    def list_history(self, cps, relpath):
+        l = []
+        for cp in cps:
+            p = cp[0] + '/' + relpath
+            if os.path.exists(p):
+                l.append(p)
+        return l
 
-def age_repr(val, unit):
-    if abs(int(val)) > 1:
-        unit += "s"  # conjugate 'unit' to plural form
-    return "%d %s %s" % (abs(val), unit, "ago" if val > 0 else "later")
+    def age_repr(self, val, unit):
+        if abs(int(val)) > 1:
+            unit += "s"  # conjugate 'unit' to plural form
+        return "%d %s %s" % (abs(val), unit, "ago" if val > 0 else "later")
 
-def pretty_format(time):
-    if time == 0:
-       return "latest"
-    if abs(time) < 60:
-        return age_repr(time, "sec")
-    time = time/60
-    if abs(time) < 60:
-        return age_repr(time, "minute")
-    time = time/60
-    if abs(time) < 24:
-        return age_repr(time, "hour")
-    time = time/24
-    if abs(time) < 30:
-        return age_repr(time, "day")
-    m = time/30
-    if abs(m) < 30:
-        return age_repr(m, "month")
-    y = time/365
-    return age_repr(y, "year")
+    def pretty_format(self, time):
+        if time == 0:
+           return "latest"
+        if abs(time) < 60:
+            return self.age_repr(time, "sec")
+        time = time/60
+        if abs(time) < 60:
+            return self.age_repr(time, "minute")
+        time = time/60
+        if abs(time) < 24:
+            return self.age_repr(time, "hour")
+        time = time/24
+        if abs(time) < 30:
+            return self.age_repr(time, "day")
+        m = time/30
+        if abs(m) < 30:
+            return self.age_repr(m, "month")
+        y = time/365
+        return self.age_repr(y, "year")
 
-def filter_by_mtime(current, history):
-    current_time = os.stat(current).st_mtime
-    last_mtime = current_time
-    l = []
-    for f in history:
-        stat = os.stat(f)
-        mtime = stat.st_mtime
-        if last_mtime != mtime:
-            size = str(stat.st_size)
-            l.append({'path' : f, 'mtime' : mtime, 'size' : size,
-                      'age' : pretty_format(current_time - mtime)})
-        last_mtime = mtime
-    return l
+    def filter_by_mtime(self, current, history):
+        current_time = os.stat(current).st_mtime
+        last_mtime = current_time
+        l = []
+        for f in history:
+            stat = os.stat(f)
+            mtime = stat.st_mtime
+            if last_mtime != mtime:
+                size = str(stat.st_size)
+                l.append({'path' : f, 'mtime' : mtime, 'size' : size,
+                          'age' : self.pretty_format(current_time - mtime)})
+            last_mtime = mtime
+        return l
 
-def get_history(path):
-    try:
-        realpath = os.path.realpath(path)
-        mounts = find_nilfs_mounts(realpath)
-        relpath = os.path.relpath(realpath, mounts['mp'])
-        history = list_history(mounts['cps'], relpath)
-        return filter_by_mtime(path, history)
+    def get_history(self, path):
+        try:
+            realpath = os.path.realpath(path)
+            mounts = self.find_nilfs_mounts(realpath)
+            relpath = os.path.relpath(realpath, mounts['mp'])
+            history = self.list_history(mounts['cps'], relpath)
+            return self.filter_by_mtime(path, history)
 
-    except KeyError, (e):
-        sys.stderr.write("configuration is not valid. missig %s key\n" % e)
+        except KeyError, (e):
+            sys.stderr.write("configuration is not valid. missig %s key\n" % e)
 
-    except NILFSException, (e):
-        sys.stderr.write(str(e) + "\n")
+        except NILFSException, (e):
+            sys.stderr.write(str(e) + "\n")
 
-    return []
+        return []
 
 def create_thumbnail_pixbuf(path):
     css = '<style type="text/css"> \
@@ -352,7 +356,7 @@ def create_list_gui(history):
 
 class NILFS2PropertyPage(nautilus.PropertyPageProvider):
     def __init__(self):
-        pass
+        self.nilfs = NILFSMounts()
 
     def get_property_pages(self, files):
         if len(files) != 1:
@@ -362,7 +366,7 @@ class NILFS2PropertyPage(nautilus.PropertyPageProvider):
         if f.get_uri_scheme() != 'file':
             return
 
-        history = get_history(f.get_uri()[7:])
+        history = self.nilfs.get_history(f.get_uri()[7:])
 
         self.property_label = gtk.Label("History")
         self.property_label.show()
