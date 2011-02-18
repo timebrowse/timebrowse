@@ -258,13 +258,8 @@ def open_with(path):
     else:
         sys.stderr.write('no application related to "%s"\n' % mime_type)
 
-def copy_to_desktop(source, icon_factory):
-    basename = os.path.basename(source)
-    desktop = glib.get_user_special_dir(glib.USER_DIRECTORY_DESKTOP)
-    dest = desktop + "/" + basename
-
-    copy = True
-    if os.path.exists(dest):
+def confirm_dialog_factory(icon_factory):
+    def create_dialog(dest):
         dialog = gtk.Dialog("Confirm", None, gtk.DIALOG_MODAL,
                             ("OK", True, "Cancel", False))
 
@@ -289,8 +284,18 @@ def copy_to_desktop(source, icon_factory):
 
         dialog.vbox.pack_start(hbox)
 
+        return dialog
+    return create_dialog
+
+def copy_to_desktop(source, confirm_dialog_factory):
+    basename = os.path.basename(source)
+    desktop = glib.get_user_special_dir(glib.USER_DIRECTORY_DESKTOP)
+    dest = desktop + "/" + basename
+
+    copy = True
+    if os.path.exists(dest):
+        dialog = confirm_dialog_factory(dest)
         copy = dialog.run()
-    
         dialog.destroy()
 
     if copy:
@@ -363,7 +368,7 @@ def create_list_gui(history, icon_factory):
         source = get_selected_path(info)
         if not source:
             return
-        copy_to_desktop(source, icon_factory)
+        copy_to_desktop(source, confirm_dialog_factory(icon_factory))
 
     button.connect("clicked", copy_to_desktop_button_clicked, tree)
 
