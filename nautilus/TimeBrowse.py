@@ -292,17 +292,7 @@ def copy_to_desktop(source, confirm_dialog_factory):
     desktop = glib.get_user_special_dir(glib.USER_DIRECTORY_DESKTOP)
     dest = desktop + "/" + basename
 
-    copy = True
-    if os.path.exists(dest):
-        dialog = confirm_dialog_factory(dest)
-        copy = dialog.run()
-        dialog.destroy()
-
-    if copy:
-        line = "rm -rf %s" % dest
-        result = commands.getstatusoutput(line)
-        line = "cp -a %s %s" % (source, desktop)
-        result = commands.getstatusoutput(line)
+    restore_to(source, dest, confirm_dialog_factory)
 
 def restore_to(source, dest, confirm_dialog_factory):
     restore = True
