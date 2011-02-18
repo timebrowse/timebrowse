@@ -371,6 +371,12 @@ class NILFS2PropertyPage(nautilus.PropertyPageProvider):
         self.nilfs = NILFSMounts()
         self.factory = PixbufFactory()
 
+    def __create_no_history_gui__(self, msg="no history"):
+        vbox = gtk.VBox(False, 0) 
+        label = gtk.Label(msg)
+        vbox.pack_start(label, True, True, 10)
+        return vbox
+
     def get_property_pages(self, files):
         if len(files) != 1:
             return
@@ -385,10 +391,7 @@ class NILFS2PropertyPage(nautilus.PropertyPageProvider):
         self.property_label.show()
 
         if len(history) == 0:
-            vbox = gtk.VBox(False, 0) 
-            label = gtk.Label("no history")
-            vbox.pack_start(label, True, True, 10)
-            self.vbox = vbox
+            self.vbox = self.__create_no_history_gui__()
         else:
             self.vbox = create_list_gui(history, self.factory)
 
