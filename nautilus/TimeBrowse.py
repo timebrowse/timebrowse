@@ -146,80 +146,92 @@ class NILFSMounts:
 
         return []
 
-def create_thumbnail_pixbuf(path):
-    css = '<style type="text/css"> \
-@page { \
-  size: letter;\
-} \
-pre { \
-  font-size: 32px;\
-} \
-</style>'
+class PixbufFactory:
+    def __init__(self, font_size=48, font_path=None):
+        self.font_size = font_size
+        self.font = font_path
+        self.thumbnail_cache = {}
 
-    meta = '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />'
+    def create_thumbnail_pixbuf(self, path):
+        css  = '<style type="text/css">\n'
+        if self.font != None:
+            css += '@font-face {\n'
+            css += '  font-family: gothic;\n'
+            css += '  src: url(%s);\n' % self.font
+            css += '}\n'
+        css += '@page {\n'
+        css += '  size: letter;\n'
+        css += '}\n'
+        css += 'pre {\n'
+        css += '  font-family: gothic;\n'
+        css += '  font-size: %spx;\n' % self.font_size
+        css += '}\n'
+        css += '</style>'
 
-    try:
-        document = evince.document_factory_get_document("file://" + path)
-    except glib.GError:
-        res = commands.getstatusoutput("file " + path + "| cut -d: -f 2")
-        text = re.compile(" text( |$)")
-        image = re.compile(" image( |,)")
-        if text.search(res[1]) != None:
-            fd = open(path)
-            contents = fd.read(1024) #generante first page only
-            data = css + meta + '<pre>\n' + \
-                   xml.sax.saxutils.escape(contents) + '\n</pre>'
-            fd.close()
-            fd = tempfile.NamedTemporaryFile('wb', -1, '.pdf',
-                                             'tb', delete=False)
-            pisa.CreatePDF(data, fd)
-            fd.close()
-            f = os.path.abspath(fd.name)
-            document = evince.document_factory_get_document("file://" + f)
-            os.remove(f)
-        elif image.search(res[1]) != None:
-            return gtk.gdk.pixbuf_new_from(path)
-        else:
-            return None
+        meta = '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />'
 
-    context = evince.RenderContext(document.get_page(0), 0, 1)
-    return evince.DocumentThumbnails.get_thumbnail(document, context, 1)
+        try:
+            document = evince.document_factory_get_document("file://" + path)
+        except glib.GError:
+            res = commands.getstatusoutput("file " + path + "| cut -d: -f 2")
+            text = re.compile(" text( |$)")
+            image = re.compile(" image( |,)")
+            if text.search(res[1]) != None:
+                fd = open(path)
+                contents = fd.read(1024) #generante first page only
+                data = css + meta + '<pre>\n' + \
+                       xml.sax.saxutils.escape(contents) + '\n</pre>'
+                fd.close()
+                fd = tempfile.NamedTemporaryFile('wb', -1, '.pdf',
+                                                 'tb', delete=False)
+                pisa.CreatePDF(data, fd)
+                fd.close()
+                f = os.path.abspath(fd.name)
+                document = evince.document_factory_get_document("file://" + f)
+                os.remove(f)
+            elif image.search(res[1]) != None:
+                return gtk.gdk.pixbuf_new_from(path)
+            else:
+                return None
 
-def create_pixbuf(path):
-    pix = create_thumbnail_pixbuf(path)
-    if pix != None:
+        context = evince.RenderContext(document.get_page(0), 0, 1)
+        return evince.DocumentThumbnails.get_thumbnail(document, context, 1)
+
+    def create_pixbuf(self, path):
+        pix = self.create_thumbnail_pixbuf(path)
+        if pix != None:
+            return pix
+
+        style = gtk.Style()
+
+        icon = style.lookup_icon_set(gtk.STOCK_FILE)
+        pix = icon.render_icon(style, gtk.TEXT_DIR_NONE, gtk.STATE_NORMAL,
+                               gtk.ICON_SIZE_DIALOG, None, None)
+
+        if not os.path.islink(path) and os.path.isdir(path):
+            t = "directory"
+            icon = style.lookup_icon_set(gtk.STOCK_DIRECTORY)
+            pix = icon.render_icon(style, gtk.TEXT_DIR_NONE,
+                                   gtk.STATE_NORMAL, gtk.ICON_SIZE_DIALOG,
+                                   None, None)
         return pix
 
-    style = gtk.Style()
+    def cached_pixbuf(self, path):
+        if self.thumbnail_cache.has_key(path):
+            return self.thumbnail_cache[path]
+        pix = self.create_pixbuf(path)
+        w= 100.;
+        h = pix.get_height() * w/ pix.get_width()
+        self.thumbnail_cache[path] = pix.scale_simple(int(w), int(h),
+                                                      gtk.gdk.INTERP_BILINEAR)
+        return self.thumbnail_cache[path]
 
-    icon = style.lookup_icon_set(gtk.STOCK_FILE)
-    pix = icon.render_icon(style, gtk.TEXT_DIR_NONE, gtk.STATE_NORMAL,
-                           gtk.ICON_SIZE_DIALOG, None, None)
+    def icon_pixbuf(self, path):
+        pix = self.create_pixbuf(path)
+        w= 48.;
+        h = pix.get_height() * w/ pix.get_width()
+        return pix.scale_simple(int(w), int(h), gtk.gdk.INTERP_BILINEAR)
 
-    if not os.path.islink(path) and os.path.isdir(path):
-        t = "directory"
-        icon = style.lookup_icon_set(gtk.STOCK_DIRECTORY)
-        pix = icon.render_icon(style, gtk.TEXT_DIR_NONE,
-                               gtk.STATE_NORMAL, gtk.ICON_SIZE_DIALOG,
-                               None, None)
-    return pix
-
-global_thumbnail_cache = {}
-def create_cached_pixbuf(path):
-    if global_thumbnail_cache.has_key(path):
-        return global_thumbnail_cache[path]
-    pix = create_pixbuf(path)
-    w= 100.;
-    h = pix.get_height() * w/ pix.get_width()
-    global_thumbnail_cache[path] = pix.scale_simple(int(w), int(h),
-                                                    gtk.gdk.INTERP_BILINEAR)
-    return global_thumbnail_cache[path]
-
-def create_icon_pixbuf(path):
-    pix = create_pixbuf(path)
-    w= 48.;
-    h = pix.get_height() * w/ pix.get_width()
-    return pix.scale_simple(int(w), int(h), gtk.gdk.INTERP_BILINEAR)
 
 def get_selected_path(treeview):
     select = treeview.get_selection()
@@ -246,7 +258,7 @@ def open_with(path):
     else:
         sys.stderr.write('no application related to "%s"\n' % mime_type)
 
-def create_list_gui(history):
+def create_list_gui(history, icon_factory):
     store = gtk.ListStore(gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
@@ -291,7 +303,7 @@ def create_list_gui(history):
     bbox.pack_end(button, False, False, 10);
     hbox.pack_end(bbox, False, False, 10);
 
-    pix = create_cached_pixbuf(history[0]['path'])
+    pix = icon_factory.cached_pixbuf(history[0]['path'])
     image = gtk.image_new_from_pixbuf(pix)
     hbox.pack_start(image, False, False, 20);
 
@@ -300,7 +312,7 @@ def create_list_gui(history):
     def row_selected(treeview, user):
         path = get_selected_path(treeview)
         if path != False:
-            pix = create_cached_pixbuf(path)
+            pix = icon_factory.cached_pixbuf(path)
             image.set_from_pixbuf(pix)
 
     tree.connect("cursor-changed", row_selected, None)
@@ -330,7 +342,7 @@ def create_list_gui(history):
             message += "Replace it?"
             label = gtk.Label(message)
 
-            pix = create_icon_pixbuf(dest)
+            pix = icon_factory.icon_pixbuf(dest)
             image = gtk.image_new_from_pixbuf(pix)
 
             hbox = gtk.HBox(False, 0)
@@ -357,6 +369,7 @@ def create_list_gui(history):
 class NILFS2PropertyPage(nautilus.PropertyPageProvider):
     def __init__(self):
         self.nilfs = NILFSMounts()
+        self.factory = PixbufFactory()
 
     def get_property_pages(self, files):
         if len(files) != 1:
@@ -377,7 +390,7 @@ class NILFS2PropertyPage(nautilus.PropertyPageProvider):
             vbox.pack_start(label, True, True, 10)
             self.vbox = vbox
         else:
-            self.vbox = create_list_gui(history)
+            self.vbox = create_list_gui(history, self.factory)
 
         self.vbox.show_all()
 
