@@ -304,8 +304,20 @@ def copy_to_desktop(source, confirm_dialog_factory):
         line = "cp -a %s %s" % (source, desktop)
         result = commands.getstatusoutput(line)
 
+def restore_to(source, dest, confirm_dialog_factory):
+    restore = True
+    if os.path.exists(dest):
+        dialog = confirm_dialog_factory(dest)
+        restore = dialog.run()
+        dialog.destroy()
 
-def create_list_gui(history, icon_factory):
+    if restore:
+        target = os.path.dirname(dest)
+        line = "rsync -ax --delete --inplace '%s' '%s'" % (source, target)
+        result = commands.getstatusoutput(line)
+
+
+def create_list_gui(current, history, icon_factory):
     store = gtk.ListStore(gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
@@ -346,8 +358,10 @@ def create_list_gui(history, icon_factory):
 
     hbox = gtk.HBox(False, 0)
     bbox = gtk.VBox(False, 0)
-    button = gtk.Button("Copy To Desktop")
-    bbox.pack_end(button, False, False, 10);
+    copy_to_btn = gtk.Button("Copy To Desktop")
+    bbox.pack_end(copy_to_btn, False, False, 10);
+    restore_to_btn = gtk.Button("Restore")
+    bbox.pack_end(restore_to_btn, False, False, 10);
     hbox.pack_end(bbox, False, False, 10);
 
     pix = icon_factory.cached_pixbuf(history[0]['path'])
@@ -370,7 +384,14 @@ def create_list_gui(history, icon_factory):
             return
         copy_to_desktop(source, confirm_dialog_factory(icon_factory))
 
-    button.connect("clicked", copy_to_desktop_button_clicked, tree)
+    copy_to_btn.connect("clicked", copy_to_desktop_button_clicked, tree)
+
+    def restore_button_clicked(widget, info):
+        source = get_selected_path(info)
+        if not source:
+            return
+        restore_to(source, current, confirm_dialog_factory(icon_factory))
+    restore_to_btn.connect("clicked", restore_button_clicked, tree)
 
     return vbox
 
@@ -393,7 +414,8 @@ class NILFS2PropertyPage(nautilus.PropertyPageProvider):
         if f.get_uri_scheme() != 'file':
             return
 
-        history = self.nilfs.get_history(f.get_uri()[7:])
+        target = f.get_uri()[7:]
+        history = self.nilfs.get_history(target)
 
         self.property_label = gtk.Label("History")
         self.property_label.show()
@@ -401,7 +423,7 @@ class NILFS2PropertyPage(nautilus.PropertyPageProvider):
         if len(history) == 0:
             self.vbox = self.__create_no_history_gui__()
         else:
-            self.vbox = create_list_gui(history, self.factory)
+            self.vbox = create_list_gui(target, history, self.factory)
 
         self.vbox.show_all()
 

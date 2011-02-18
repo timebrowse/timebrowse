@@ -7,6 +7,7 @@ Requirements:
     * nautilus-python (python-nautilus in Debian/Ubuntu)
     * pisa (python-pisa in Debian/Ubuntu)
     * python-evince
+    * rsync
 
 To install:
     To install for all users, copy TimeBrowse.py to:
