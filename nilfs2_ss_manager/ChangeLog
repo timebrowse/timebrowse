@@ -1,3 +1,7 @@
+nilfs2_ss_manager-v0.3  Sat Feb 19 20:17:19 JST 2011
+	* do not write to mtab for snapshot mount
+	* use tmpfs to mount snapshonts on nilfs volume
+
 nilfs2_ss_manager-v0.2  Sat Feb 12 18:50:58 JST 2011
 	* change default configuration file to nilfs_ss.conf (Ryusuke Konishi)
 	* handle error during loading conffile (Ryusuke Konishi)

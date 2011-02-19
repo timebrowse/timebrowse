@@ -1,6 +1,5 @@
-* open with application
 * open in directory
-* show thumbnail of the file
+* show any pages of thumbnail of the file
 * show diffs against current
-* copy to anywhere
-* restore
+* copy to anywhere (drag and drop)
+* find history asynchronously (communicate with snapshot manager)

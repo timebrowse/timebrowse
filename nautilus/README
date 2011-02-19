@@ -21,3 +21,6 @@ To install:
     Restart nautilus with the following commands:
         $ nautilus -q
         $ nohup nautilus > /dev/null &
+
+Known Issue:
+    * Too slow when there are lots of snapthos in NILFS volume.
