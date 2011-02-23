@@ -336,6 +336,7 @@ def create_list_gui(current, history, icon_factory):
                       e['size'], e['age']])
 
     tree = gtk.TreeView()
+    tree.set_rules_hint(True)
     tree.set_model(store)
 
     rederer = gtk.CellRendererText()
