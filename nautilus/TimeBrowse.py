@@ -352,6 +352,8 @@ def create_list_gui(current, history, icon_factory):
     bbox.pack_end(copy_to_btn, False, False, 10);
     restore_to_btn = gtk.Button("Restore")
     bbox.pack_end(restore_to_btn, False, False, 10);
+    open_in_dir_btn = gtk.Button("Open in Directory")
+    bbox.pack_end(open_in_dir_btn, False, False, 10);
     hbox.pack_end(bbox, False, False, 10);
 
     pix = icon_factory.cached_pixbuf(history[0]['path'])
@@ -382,6 +384,13 @@ def create_list_gui(current, history, icon_factory):
             return
         restore_to(source, current, confirm_dialog_factory(icon_factory))
     restore_to_btn.connect("clicked", restore_button_clicked, tree)
+
+    def open_in_dir_button_clicked(widget, info):
+        source = get_selected_path(info)
+        if not source:
+            return
+        open_with(os.path.dirname(source))
+    open_in_dir_btn.connect("clicked", open_in_dir_button_clicked, tree)
 
     return vbox
 
