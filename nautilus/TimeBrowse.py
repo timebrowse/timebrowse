@@ -116,15 +116,31 @@ class NILFSMounts:
         y = time/365
         return self.age_repr(y, "year")
 
+    def get_dir_info(self, directory):
+        stat = os.stat(directory)
+        newest = stat.st_mtime
+        size = stat.st_size
+        for e in os.listdir(directory):
+            mtime = os.stat("%s/%s" % (directory, e)).st_mtime
+            if newest < mtime:
+                newest = mtime
+        return (newest, size)
+
+    def get_file_info(self, path):
+        if os.path.isdir(path):
+            return self.get_dir_info(path)
+        else:
+            stat = os.stat(path)
+            return (stat.st_mtime, stat.st_size)
+  
+    
     def filter_by_mtime(self, history):
         current_time = time.time()
         last_mtime = current_time
         l = []
         for f in history:
-            stat = os.stat(f)
-            mtime = stat.st_mtime
+            (mtime, size) = self.get_file_info(f)
             if last_mtime != mtime:
-                size = str(stat.st_size)
                 l.append({'path' : f, 'mtime' : mtime, 'size' : size,
                           'age' : self.pretty_format(current_time - mtime)})
             last_mtime = mtime
