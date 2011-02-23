@@ -2,8 +2,8 @@ TimeBrowse-v0.3  Sat Feb 19 20:17:19 JST 2011
 	* add restore button to resotre to the original place
 	* view the file by double click in history list
 	* add thumbnail of the files in history
-	* better pretty format
-	* fix a bug that mixed history on multilple NILFS volumes 
+	* better pretty format (Ryusuke Konishi)
+	* fix a bug that mixed history on multilple NILFS volumes (Ryusuke Konishi)
 
 TimeBrowse-v0.2  Sat Feb 12 19:21:18 JST 2011
 	* add copy to desktop button in property page
