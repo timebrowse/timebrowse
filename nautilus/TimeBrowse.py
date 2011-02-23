@@ -116,8 +116,8 @@ class NILFSMounts:
         y = time/365
         return self.age_repr(y, "year")
 
-    def filter_by_mtime(self, current, history):
-        current_time = os.stat(current).st_mtime
+    def filter_by_mtime(self, history):
+        current_time = time.time()
         last_mtime = current_time
         l = []
         for f in history:
@@ -136,7 +136,7 @@ class NILFSMounts:
             mounts = self.find_nilfs_mounts(realpath)
             relpath = os.path.relpath(realpath, mounts['mp'])
             history = self.list_history(mounts['cps'], relpath)
-            return self.filter_by_mtime(path, history)
+            return self.filter_by_mtime(history)
 
         except KeyError, (e):
             sys.stderr.write("configuration is not valid. missig %s key\n" % e)
