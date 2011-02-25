@@ -322,8 +322,19 @@ def restore_to(source, dest, confirm_dialog_factory):
         line = "rsync -ax --delete --inplace '%s' '%s'" % (source, target)
         result = commands.getstatusoutput(line)
 
+def create_no_history_gui(self, msg="no history"):
+    vbox = gtk.VBox(False, 0) 
+    label = gtk.Label(msg)
+    vbox.pack_start(label, True, True, 10)
+    return vbox
 
-def create_list_gui(current, history, icon_factory):
+def create_list_gui(current, icon_factory):
+    nilfs = NILFSMounts()
+    history = nilfs.get_history(current)
+
+    if len(history) == 0:
+        create_no_history_gui()
+
     store = gtk.ListStore(gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
@@ -413,14 +424,7 @@ def create_list_gui(current, history, icon_factory):
 
 class NILFS2PropertyPage(nautilus.PropertyPageProvider):
     def __init__(self):
-        self.nilfs = NILFSMounts()
         self.factory = PixbufFactory()
-
-    def __create_no_history_gui__(self, msg="no history"):
-        vbox = gtk.VBox(False, 0) 
-        label = gtk.Label(msg)
-        vbox.pack_start(label, True, True, 10)
-        return vbox
 
     def get_property_pages(self, files):
         if len(files) != 1:
@@ -431,16 +435,11 @@ class NILFS2PropertyPage(nautilus.PropertyPageProvider):
             return
 
         target = f.get_uri()[7:]
-        history = self.nilfs.get_history(target)
 
         self.property_label = gtk.Label("History")
         self.property_label.show()
 
-        if len(history) == 0:
-            self.vbox = self.__create_no_history_gui__()
-        else:
-            self.vbox = create_list_gui(target, history, self.factory)
-
+        self.vbox = create_list_gui(target, self.factory)
         self.vbox.show_all()
 
         return nautilus.PropertyPage("NautilusPython::nilfs2",
