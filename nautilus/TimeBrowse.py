@@ -83,13 +83,6 @@ class NILFSMounts:
         raise NILFSException("file not in NILFS volume: %s" % realpath)
 
 
-    def list_history(self, cps, relpath):
-        l = []
-        for cp in cps:
-            p = cp[0] + '/' + relpath
-            if os.path.exists(p):
-                l.append(p)
-        return l
 
     def age_repr(self, val, unit):
         if abs(int(val)) > 1:
@@ -133,26 +126,25 @@ class NILFSMounts:
             stat = os.stat(path)
             return (stat.st_mtime, stat.st_size)
   
-    
-    def filter_by_mtime(self, history):
+    def list_history(self, cps, relpath):
         current_time = time.time()
         last_mtime = current_time
-        l = []
-        for f in history:
-            (mtime, size) = self.get_file_info(f)
-            if last_mtime != mtime:
-                l.append({'path' : f, 'mtime' : mtime, 'size' : size,
-                          'age' : self.pretty_format(current_time - mtime)})
-            last_mtime = mtime
-        return l
+        for cp in cps:
+            f = cp[0] + '/' + relpath
+            if os.path.exists(f):
+                (mtime, size) = self.get_file_info(f)
+                if last_mtime != mtime:
+                    entry = {'path' : f, 'mtime' : mtime, 'size' : size,
+                             'age' : self.pretty_format(current_time - mtime)}
+                    yield entry
+                last_mtime = mtime
 
     def get_history(self, path):
         try:
             realpath = os.path.realpath(path)
             mounts = self.find_nilfs_mounts(realpath)
             relpath = os.path.relpath(realpath, mounts['mp'])
-            history = self.list_history(mounts['cps'], relpath)
-            return self.filter_by_mtime(history)
+            return  self.list_history(mounts['cps'], relpath)
 
         except KeyError, (e):
             sys.stderr.write("configuration is not valid. missig %s key\n" % e)
@@ -330,18 +322,13 @@ def create_no_history_gui(self, msg="no history"):
 
 def create_list_gui(current, icon_factory):
     nilfs = NILFSMounts()
-    history = nilfs.get_history(current)
-
-    if len(history) == 0:
-        create_no_history_gui()
-
     store = gtk.ListStore(gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
                           gobject.TYPE_STRING,)
     store.clear()
 
-    for e in history:
+    for e in nilfs.get_history(current):
         store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
                                                time.localtime(e['mtime'])),
                       e['size'], e['age']])
@@ -384,8 +371,7 @@ def create_list_gui(current, icon_factory):
     bbox.pack_end(open_in_dir_btn, False, False, 10);
     hbox.pack_end(bbox, False, False, 10);
 
-    pix = icon_factory.cached_pixbuf(history[0]['path'])
-    image = gtk.image_new_from_pixbuf(pix)
+    image = gtk.Image()
     hbox.pack_start(image, False, False, 20);
 
     vbox.pack_start(hbox, False, False, 5);
