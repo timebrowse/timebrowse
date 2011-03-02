@@ -24,6 +24,7 @@ import glib
 import time
 import gio
 import tempfile
+import threading
 import xml.sax.saxutils
 import evince
 import sx.pisa3 as pisa
@@ -152,7 +153,7 @@ class NILFSMounts:
         except NILFSException, (e):
             sys.stderr.write(str(e) + "\n")
 
-        return []
+        return None
 
 class PixbufFactory:
     def __init__(self, font_size=48, font_path=None):
@@ -314,12 +315,6 @@ def restore_to(source, dest, confirm_dialog_factory):
         line = "rsync -ax --delete --inplace '%s' '%s'" % (source, target)
         result = commands.getstatusoutput(line)
 
-def create_no_history_gui(self, msg="no history"):
-    vbox = gtk.VBox(False, 0) 
-    label = gtk.Label(msg)
-    vbox.pack_start(label, True, True, 10)
-    return vbox
-
 def create_list_gui(current, icon_factory):
     nilfs = NILFSMounts()
     store = gtk.ListStore(gobject.TYPE_STRING,
@@ -327,11 +322,6 @@ def create_list_gui(current, icon_factory):
                           gobject.TYPE_STRING,
                           gobject.TYPE_STRING,)
     store.clear()
-
-    for e in nilfs.get_history(current):
-        store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
-                                               time.localtime(e['mtime'])),
-                      e['size'], e['age']])
 
     tree = gtk.TreeView()
     tree.set_rules_hint(True)
@@ -359,7 +349,8 @@ def create_list_gui(current, icon_factory):
     frame.add(scroll)
 
     vbox = gtk.VBox(False, 0)
-    vbox.pack_start(frame)
+    searching_history_label = gtk.Label("searching history..")
+    vbox.pack_start(searching_history_label)
 
     hbox = gtk.HBox(False, 0)
     bbox = gtk.VBox(False, 0)
@@ -374,14 +365,15 @@ def create_list_gui(current, icon_factory):
     image = gtk.Image()
     hbox.pack_start(image, False, False, 20);
 
-    vbox.pack_start(hbox, False, False, 5);
+    #will be added in add_first_history() bellow
+    #vbox.pack_start(frame)
+    #vbox.pack_start(hbox, False, False, 5);
 
     def row_selected(treeview, user):
         path = get_selected_path(treeview)
         if path != False:
             pix = icon_factory.cached_pixbuf(path)
             image.set_from_pixbuf(pix)
-
     tree.connect("cursor-changed", row_selected, None)
 
     def copy_to_desktop_button_clicked(widget, info):
@@ -389,7 +381,6 @@ def create_list_gui(current, icon_factory):
         if not source:
             return
         copy_to_desktop(source, confirm_dialog_factory(icon_factory))
-
     copy_to_btn.connect("clicked", copy_to_desktop_button_clicked, tree)
 
     def restore_button_clicked(widget, info):
@@ -405,6 +396,51 @@ def create_list_gui(current, icon_factory):
             return
         open_with(os.path.dirname(source))
     open_in_dir_btn.connect("clicked", open_in_dir_button_clicked, tree)
+
+    condition = threading.Event()
+    def add_history(gen):
+        if condition.isSet():
+            return
+        try:
+            e = gen.next() 
+            store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
+                                                   time.localtime(e['mtime'])),
+                         e['size'], e['age']])
+            glib.idle_add(add_history, gen)
+
+        except StopIteration:
+            pass
+
+    def add_first_history(gen):
+        if condition.isSet():
+            return
+        try:
+            if gen == None:
+                raise StopIteration()
+            e = gen.next()
+            pix = icon_factory.cached_pixbuf(e['path'])
+            image.set_from_pixbuf(pix)
+            store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
+                                                   time.localtime(e['mtime'])),
+                         e['size'], e['age']])
+            vbox.remove(searching_history_label)
+            vbox.pack_start(frame)
+            vbox.pack_start(hbox, False, False, 5);
+            vbox.show_all()  
+            glib.idle_add(add_history, gen)
+
+        except StopIteration:
+            if not condition.isSet():
+                vbox.remove(searching_history_label)
+                vbox.pack_start(gtk.Label("no history")) 
+                vbox.show_all()  
+
+    g = nilfs.get_history(current)
+    glib.idle_add(add_first_history, g)
+
+    def stop_generator(w, u):
+        u.set()
+    vbox.connect("destroy", stop_generator, condition)
 
     return vbox
 
