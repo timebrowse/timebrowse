@@ -405,7 +405,7 @@ def create_list_gui(current, icon_factory):
             e = gen.next() 
             store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
                                                    time.localtime(e['mtime'])),
-                         e['size'], e['age']])
+                         str(e['size']), e['age']])
             glib.idle_add(add_history, gen)
 
         except StopIteration:
@@ -422,7 +422,7 @@ def create_list_gui(current, icon_factory):
             image.set_from_pixbuf(pix)
             store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
                                                    time.localtime(e['mtime'])),
-                         e['size'], e['age']])
+                         str(e['size']), e['age']])
             vbox.remove(searching_history_label)
             vbox.pack_start(frame)
             vbox.pack_start(hbox, False, False, 5);
