@@ -319,20 +319,27 @@ def create_list_gui(current, icon_factory):
     nilfs = NILFSMounts()
     store = gtk.ListStore(gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
-                          gobject.TYPE_STRING,
+                          gobject.TYPE_INT,
                           gobject.TYPE_STRING,)
     store.clear()
 
     tree = gtk.TreeView()
     tree.set_rules_hint(True)
+    tree.set_headers_clickable(True)
     tree.set_model(store)
 
     rederer = gtk.CellRendererText()
+
     column = gtk.TreeViewColumn("date", rederer, text=1)
+    column.set_sort_column_id(1)
     tree.append_column(column)
+
     column = gtk.TreeViewColumn("size", rederer, text=2)
+    column.set_sort_column_id(2)
     tree.append_column(column)
+
     column = gtk.TreeViewColumn("age", rederer, text=3)
+    column.set_sort_column_id(1) # same as date
     tree.append_column(column)
 
     def double_clicked(treeview, path, view_column, user):
@@ -405,7 +412,7 @@ def create_list_gui(current, icon_factory):
             e = gen.next() 
             store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
                                                    time.localtime(e['mtime'])),
-                         str(e['size']), e['age']])
+                         e['size'], e['age']])
             glib.idle_add(add_history, gen)
 
         except StopIteration:
@@ -422,7 +429,7 @@ def create_list_gui(current, icon_factory):
             image.set_from_pixbuf(pix)
             store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
                                                    time.localtime(e['mtime'])),
-                         str(e['size']), e['age']])
+                         e['size'], e['age']])
             vbox.remove(searching_history_label)
             vbox.pack_start(frame)
             vbox.pack_start(hbox, False, False, 5);
