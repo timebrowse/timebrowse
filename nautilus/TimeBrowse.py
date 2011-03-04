@@ -332,14 +332,17 @@ def create_list_gui(current, icon_factory):
 
     column = gtk.TreeViewColumn("date", rederer, text=1)
     column.set_sort_column_id(1)
+    column.set_resizable(True)
     tree.append_column(column)
 
     column = gtk.TreeViewColumn("size", rederer, text=2)
     column.set_sort_column_id(2)
+    column.set_resizable(True)
     tree.append_column(column)
 
     column = gtk.TreeViewColumn("age", rederer, text=3)
     column.set_sort_column_id(1) # same as date
+    column.set_resizable(True)
     tree.append_column(column)
 
     def double_clicked(treeview, path, view_column, user):
