@@ -130,6 +130,7 @@ class NILFSMounts:
     def list_history(self, cps, relpath):
         current_time = time.time()
         last_mtime = current_time
+        unyield_count = 0
         for cp in cps:
             f = cp[0] + '/' + relpath
             if os.path.exists(f):
@@ -137,8 +138,16 @@ class NILFSMounts:
                 if last_mtime != mtime:
                     entry = {'path' : f, 'mtime' : mtime, 'size' : size,
                              'age' : self.pretty_format(current_time - mtime)}
+                    unyield_count = 0
                     yield entry
+                else:
+                    unyield_count += 1
                 last_mtime = mtime
+            elif (unyield_count&0xFF) == 0xFF:
+                unyield_count = 0
+                yield None
+            else:
+                unyield_count += 1
 
     def get_history(self, path):
         try:
@@ -413,9 +422,11 @@ def create_list_gui(current, icon_factory):
             return
         try:
             e = gen.next() 
-            store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
-                                                   time.localtime(e['mtime'])),
-                         e['size'], e['age']])
+            if e != None:
+                store.append([e['path'],
+                             time.strftime("%Y.%m.%d-%H.%M.%S",
+                                           time.localtime(e['mtime'])),
+                             e['size'], e['age']])
             glib.idle_add(add_history, gen)
 
         except StopIteration:
@@ -428,16 +439,20 @@ def create_list_gui(current, icon_factory):
             if gen == None:
                 raise StopIteration()
             e = gen.next()
-            pix = icon_factory.cached_pixbuf(e['path'])
-            image.set_from_pixbuf(pix)
-            store.append([e['path'], time.strftime("%Y.%m.%d-%H.%M.%S",
-                                                   time.localtime(e['mtime'])),
-                         e['size'], e['age']])
-            vbox.remove(searching_history_label)
-            vbox.pack_start(frame)
-            vbox.pack_start(hbox, False, False, 5);
-            vbox.show_all()  
-            glib.idle_add(add_history, gen)
+            if e == None:
+                glib.idle_add(add_first_history, gen)
+            else:
+                pix = icon_factory.cached_pixbuf(e['path'])
+                image.set_from_pixbuf(pix)
+                store.append([e['path'],
+                             time.strftime("%Y.%m.%d-%H.%M.%S",
+                                           time.localtime(e['mtime'])),
+                             e['size'], e['age']])
+                vbox.remove(searching_history_label)
+                vbox.pack_start(frame)
+                vbox.pack_start(hbox, False, False, 5);
+                vbox.show_all()  
+                glib.idle_add(add_history, gen)
 
         except StopIteration:
             if not condition.isSet():
