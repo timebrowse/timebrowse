@@ -23,4 +23,14 @@ To install:
         $ nohup nautilus > /dev/null &
 
 Known Issue:
-    * Too slow when there are lots of snapthos in NILFS volume.
+    * Thumbnail for Japanese(may other Asians) plain text is not proper.
+      This is the font problem.  You can hack the problem by
+      specifying truetype font path in TimeBrowse.py, like following:
+
+> class NILFS2PropertyPage(nautilus.PropertyPageProvider):
+>    def __init__(self):
+>        self.factory = PixbufFactory(font_path="/usr/share/fonts/truetype/ttf-japanese-gothic.ttf")
+>
+>    def get_property_pages(self, files):
+
+      Still, only UTF-8 encoded texts are supported so far.

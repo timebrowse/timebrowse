@@ -30,3 +30,8 @@ Run:
 
     will start the script in daemon mode.
     If you want to run without going to daemon mode, you will specify '-D'.
+
+    If you find some snapshots are still mounted even after you stop
+    the manager, you can clean up those with '-C' option.
+
+    # nilfs2_ss_manager -C
