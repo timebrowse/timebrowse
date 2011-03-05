@@ -140,14 +140,11 @@ class NILFSMounts:
                              'age' : self.pretty_format(current_time - mtime)}
                     unyield_count = 0
                     yield entry
-                else:
-                    unyield_count += 1
                 last_mtime = mtime
-            elif (unyield_count&0xFF) == 0xFF:
+            if (unyield_count&0xFF) == 0xFF:
                 unyield_count = 0
                 yield None
-            else:
-                unyield_count += 1
+            unyield_count += 1
 
     def get_history(self, path):
         try:
