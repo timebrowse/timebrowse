@@ -17,6 +17,7 @@ import nilfs2
 import yaml
 import time
 import os
+import re
 import sys
 import argparse
 import gobject
@@ -58,7 +59,7 @@ def match_fs(path, fsnames):
 class NILFSSSManager:
     def __init__(self, nilfs, mp, logger):
         self.ns = nilfs
-        self.mp = mp
+        self.mp = os.path.realpath(mp)
         self.logger = logger
         self.mounts = []
         self.aborting = False
@@ -122,10 +123,6 @@ class NILFSSSManager:
         if match_fs(self.mp, ['tmpfs']):
             self.unmount_tmpfs()
 
-    def shutdown(self):
-        self.aborting = True
-        self.unmount_all()
-
     def do_mount(self, cp, t='date'):
         target = self.mp
         if t == 'date':
@@ -163,6 +160,22 @@ class NILFSSSManager:
     def unmount_tmpfs(self):
         cmd = 'umount -t tmpfs ' + self.mp
         commands.getstatusoutput(cmd)
+
+    def scan_mounts(self):
+        """ Restore mountpoints (self.mounts) from /proc/mounts """
+        regex = re.compile(
+            '^ *([^ ]+) +(' + self.mp +
+            '/[^ ]+) +nilfs2 +[^ ]*cp=[\d]+[^ ]* +[^ ]+ +[^ ]+ *$', re.M)
+        with open("/proc/mounts") as f:
+            self.mounts = [m[1] for m in regex.findall(f.read())]
+
+    def shutdown(self):
+        self.aborting = True
+        self.unmount_all()
+
+    def clean(self):
+        self.scan_mounts()
+        self.unmount_all()
 
 def do_loop(interval, ss_managers):
     for manager in ss_managers:
@@ -205,13 +218,16 @@ try:
                         default = '/etc/nilfs_ss.conf',
                         metavar = 'config',
                         help = 'config file')
+    parser.add_argument("-C", "--clean", dest='clean', action='store_const',
+                        default = False, const = True,
+                        help = 'manually unmount all snapshots')
     parser.add_argument("-D", dest='daemonize', action='store_const',
                         default = True, const = False, 
                         help = 'do not daemonize')
 
     args = parser.parse_args()
     conffile = args.conffile
-    daemonize = args.daemonize
+    daemonize = args.daemonize and not args.clean
    
     conf = yaml.safe_load(open(conffile))
     check_configuration(conf)
@@ -229,14 +245,18 @@ try:
     managers = [NILFSSSManager(nilfs2.NILFS2(device), devices[device], logger)
                 for device in devices] 
  
-    with dc:
-        interval = period * 1000
-        gobject.timeout_add(interval, do_loop, interval, managers)
-        mainloop = gobject.MainLoop()
-        register_sighandlers(managers, mainloop)
-	for manager in managers:
-            manager.mount_ss()
-        mainloop.run()
+    if args.clean:
+        for manager in managers:
+            manager.clean()
+    else:
+        with dc:
+            interval = period * 1000
+            gobject.timeout_add(interval, do_loop, interval, managers)
+            mainloop = gobject.MainLoop()
+            register_sighandlers(managers, mainloop)
+            for manager in managers:
+                manager.mount_ss()
+                mainloop.run()
 
 except NILFSConfigurationExeption, e:
     logger.out(syslog.LOG_ERR, "Configuration error in %s" % conffile)
