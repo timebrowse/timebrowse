@@ -115,16 +115,16 @@ class NILFSMounts:
         newest = stat.st_mtime
         size = stat.st_size
         for e in os.listdir(directory):
-            mtime = os.stat("%s/%s" % (directory, e)).st_mtime
+            mtime = os.lstat("%s/%s" % (directory, e)).st_mtime
             if newest < mtime:
                 newest = mtime
         return (newest, size)
 
     def get_file_info(self, path):
-        if os.path.isdir(path):
+        if os.path.isdir(path) and not os.path.islink(path):
             return self.get_dir_info(path)
         else:
-            stat = os.stat(path)
+            stat = os.lstat(path)
             return (stat.st_mtime, stat.st_size)
   
     def list_history(self, cps, relpath):
