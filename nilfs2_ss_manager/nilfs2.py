@@ -64,12 +64,7 @@ class NILFS2:
         l.append(ss if ss else a[-1])
         return l
 
-    def lscp(self):
-        last = self.cps[-1]
-        cn = last['cno'] + 1
-        result = self.__run_cmd__("lscp -i %d " % cn + self.device)
-
-        l = self.__parse_lscp_output__(result)
+    def __join_cp_list__(self, l, last):
         # Here, we suppose coinstantaneous checkpoints were shrunk both from
         # l and self.cps.
 
@@ -83,6 +78,52 @@ class NILFS2:
             else:
                 del self.cps[-1]
 	self.cps += l
+
+    def __refresh_cp_cache__(self):
+        """
+        Update state of checkpoint information in lscp cache to
+        reflect manual snapshot operations
+        """
+        cn = self.cps[0]['cno']
+        result = self.__run_cmd__("lscp -i %d " % cn + self.device)
+
+        l = self.__parse_lscp_output__(result)
+
+        for cp in self.cps[:]:
+            # Skip checkpoints
+            while l and cp['cno'] > l[0]['cno']:
+                del l[0]
+            if cp['ss']:
+                pass  # Do not update snapshot
+            else:
+                if not l or cp['cno'] < l[0]['cno']:
+                    # The plain checkpoint was deleted
+                    self.cps.remove(cp)
+                else:  # cp['cno'] == l[0]['cno']
+                    if l[0]['ss']:
+                        # A new snapshot found
+                        cp['ss'] = True
+
+        if not self.cps:  # if cp cache became empty
+            self.cps = l
+        else:
+            last = self.cps[-1]
+            while l and l[0]['cno'] <= last['cno']:
+                del l[0]
+            self.__join_cp_list__(l, last)
+
+    def lscp(self, refresh=False):
+        if not self.cps:
+            result = self.__run_cmd__("lscp " + self.device)
+            self.cps = self.__parse_lscp_output__(result)
+        elif refresh:
+            self.__refresh_cp_cache__()
+        else:
+            last = self.cps[-1]
+            cn = last['cno'] + 1
+            result = self.__run_cmd__("lscp -i %d " % cn + self.device)
+            l = self.__parse_lscp_output__(result)
+            self.__join_cp_list__(l, last)
 
 	return self.cps
 
