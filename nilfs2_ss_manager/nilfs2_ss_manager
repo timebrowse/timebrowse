@@ -28,6 +28,7 @@ import syslog
 import signal
 
 class Logger:
+    "A simple logger class which can redirect the output"
     def __init__(self, indent=False):
         if indent:
             self.__indent__ = indent
@@ -36,11 +37,13 @@ class Logger:
             self.out = self.stderr_out
 
     def syslog_out(self, prio, string):
+        "Write a given string to syslog"
         syslog.openlog(self.__indent__)
         syslog.syslog(prio, string)
         syslog.closelog()
 
     def stderr_out(self, prio, string):
+        "Print a given string to the standard error output"
         print >> sys.stderr, string
 
 class NILFSConfigurationException(Exception):
@@ -65,6 +68,7 @@ class NILFSSSManager:
         self.aborting = False
 
     def mount_ss(self):
+        "Create mount points for existing snapshots and mount them."
         if match_fs(self.mp, ['nilfs', 'nilfs2']):
             self.mount_tmpfs()
 
@@ -77,6 +81,7 @@ class NILFSSSManager:
                 self.do_mount(cp)
 
     def create_dir(self, path):
+        "Check if @path is present, and make the directory if not."
         if os.path.exists(path):
             if not os.path.isdir(path):
                  info = "path is not directory: %s" % path
@@ -86,6 +91,7 @@ class NILFSSSManager:
             os.mkdir(path)
 
     def do_unmount_all(self, busy=[], failed=[]):
+        "Unmount all snapshots and remove their mount point directories"
         for mp in self.mounts:
             cmd = 'umount -n %s' % mp
             result = commands.getstatusoutput(cmd)
@@ -105,6 +111,7 @@ class NILFSSSManager:
         self.mounts = busy
 
     def unmount_all(self):
+        "Unmount all snapshots and retry it a few times for busy snapshots."
         busy = []
         failed = []
         self.do_unmount_all(busy, failed)
@@ -124,6 +131,12 @@ class NILFSSSManager:
             self.unmount_tmpfs()
 
     def do_mount(self, cp, t='date'):
+        """
+        Create a sub-directory with a name based on timestamp @t and
+        mount a snapshot given by the checkpoint information @cp on
+        the directory.  On success, the sub-directory name will be
+        appended to @self.mounts list.
+        """
         target = self.mp
         if t == 'date':
             local = time.strftime("%Y.%m.%d-%H.%M.%S", cp['date'])
@@ -140,6 +153,10 @@ class NILFSSSManager:
                         "mount ss = %d on %s" % (cp['cno'],target))
 
     def create_ss(self):
+        """
+        Get a list of recently created checkpoints, change them into
+        snapshots, and mount them.
+        """
         if self.aborting: return
         cps = self.ns.lscp()[:]
         cps.reverse()
@@ -154,15 +171,17 @@ class NILFSSSManager:
             self.do_mount(cp)
 
     def mount_tmpfs(self):
+        "Create a tmpfs mount on @self.mp"
         cmd = 'mount -t tmpfs none ' + self.mp
         commands.getstatusoutput(cmd)
 
     def unmount_tmpfs(self):
+        "Unmount the tmpfs mount on @self.mp"
         cmd = 'umount -t tmpfs ' + self.mp
         commands.getstatusoutput(cmd)
 
     def scan_mounts(self):
-        """ Restore mountpoints (self.mounts) from /proc/mounts """
+        "Restore mountpoints (self.mounts) from /proc/mounts"
         regex = re.compile(
             '^ *([^ ]+) +(' + self.mp +
             '/[^ ]+) +nilfs2 +[^ ]*cp=[\d]+[^ ]* +[^ ]+ +[^ ]+ *$', re.M)
@@ -170,19 +189,32 @@ class NILFSSSManager:
             self.mounts = [m[1] for m in regex.findall(f.read())]
 
     def shutdown(self):
+        """
+        Set @self.aborting which shows if the daemon is an aborting phase,
+        and unmount all snapshots.
+        """
         self.aborting = True
         self.unmount_all()
 
     def clean(self):
+        """
+        Retrieve a list of snapshot mounts from /proc/mounts and
+        unmount them all.
+        """
         self.scan_mounts()
         self.unmount_all()
 
 def do_loop(interval, ss_managers):
+    """
+    Callback function to trigger snapshot creation.  This function is called
+    periodically at intervals of the given @interval.
+    """
     for manager in ss_managers:
         manager.create_ss()
     gobject.timeout_add(interval, do_loop, interval, ss_managers)
 
 class NODaemonContext:
+    "Dummy daemon context class"
     def __init__(self):
         pass
 
@@ -193,6 +225,7 @@ class NODaemonContext:
         pass
 
 def register_sighandlers(managers, mainloop):
+    "Register signal handlers"
     def do_exit(a,b):
         for m in managers:
             m.shutdown()
@@ -201,6 +234,7 @@ def register_sighandlers(managers, mainloop):
     signal.signal(signal.SIGTERM, do_exit)
 
 def check_configuration(conf):
+    "Check if the configuration is valid"
     errors = []
     for key in ['devices', 'period', 'pidfile']:
         if not key in conf:
@@ -213,6 +247,8 @@ def check_configuration(conf):
 
 try:
     logger = Logger()
+
+    # Parse command line options
     parser = argparse.ArgumentParser(description="NILFS2 snapshot manager")
     parser.add_argument("-f", "--conf", dest='conffile',
                         default = '/etc/nilfs_ss.conf',
@@ -228,13 +264,16 @@ try:
     args = parser.parse_args()
     conffile = args.conffile
     daemonize = args.daemonize and not args.clean
-   
+
+    # Read configuration file written in YAML format.
     conf = yaml.safe_load(open(conffile))
     check_configuration(conf)
 
     devices = conf['devices']
     period = conf['period']
 
+    # Set up a daemon context. If no daemonize option is specfied, a
+    # dummy context (NODaemonContext) will be used.
     dc = NODaemonContext()
     if daemonize:
         pidfile = conf['pidfile']
@@ -242,13 +281,20 @@ try:
                     pidfile=daemon.pidlockfile.PIDLockFile(pidfile))
         logger = Logger(sys.argv[0])
 
+    # Create snapshot managers for every device and mountpoint written
+    # in conffile.
     managers = [NILFSSSManager(nilfs2.NILFS2(device), devices[device], logger)
                 for device in devices] 
  
     if args.clean:
+        # Do cleanup job for every nilfs device if "clean" option is
+        # specified.
         for manager in managers:
             manager.clean()
     else:
+        # Initialize signal handlers and the timer to call back the
+        # do_loop function periodically, and then kick every snapshot
+        # manager.
         with dc:
             interval = period * 1000
             gobject.timeout_add(interval, do_loop, interval, managers)
@@ -259,11 +305,13 @@ try:
             mainloop.run()
 
 except NILFSConfigurationException, e:
+    # Handle conffile errors
     logger.out(syslog.LOG_ERR, "Configuration error in %s" % conffile)
     for error in e.errors:
         logger.out(syslog.LOG_ERR, "  " + error),
 
 except yaml.YAMLError, e:
+    # Handle YAML errors
     pos = None
     if (hasattr(e, 'problem') and hasattr(e, 'context_mark') and
         hasattr(e, 'problem_mark')):
