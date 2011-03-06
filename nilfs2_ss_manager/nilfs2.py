@@ -20,6 +20,9 @@ import time
 
 class NILFS2:
     def __init__(self, device):
+        self.cpinfo_regex = re.compile(
+            r'^ +([1-9]|[1-9][0-9]+) +([^ ]+ [^ ]+) +(ss|cp) +([^ ]+) +.*$',
+            re.M)
         self.device = device
         result = self.__run_cmd__("lscp " + self.device)
         self.cps = self.__parse_lscp_output__(result)
@@ -31,8 +34,7 @@ class NILFS2:
         return result[1]
 
     def __parse_lscp_output__(self, output):
-        regex = r'^ +([1-9]|[1-9][0-9]+) +([^ ]+ [^ ]+) +(ss|cp) +([^ ]+) +.*$'
-        a = re.findall(regex, output, re.M)
+        a = self.cpinfo_regex.findall(output)
 
         a = [ {'cno'  : int(e[0]),
                'date' : time.strptime(e[1], "%Y-%m-%d %H:%M:%S"),
