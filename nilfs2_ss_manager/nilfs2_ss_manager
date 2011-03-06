@@ -17,6 +17,7 @@ import nilfs2
 import yaml
 import time
 import os
+import stat
 import re
 import sys
 import argparse
@@ -60,25 +61,45 @@ def match_fs(path, fsnames):
     return result[0] == 0 and (result[1] in fsnames)
 
 class NILFSSSManager:
-    def __init__(self, nilfs, mp, logger):
+    def __init__(self, nilfs, mp, logger, **options):
         self.ns = nilfs
         self.mp = os.path.realpath(mp)
         self.logger = logger
         self.mounts = []
         self.aborting = False
+        self.passive = 'passive' in options and options['passive']
 
-    def mount_ss(self):
+    def snapshot_mount_point(self, cp):
+        return self.mp + '/' + time.strftime("%Y.%m.%d-%H.%M.%S", cp['date'])
+
+    def snapshot_is_mounted(self, cp):
+        "Return if the specified checkpoint is mounted or not"
+        path = self.snapshot_mount_point(cp)
+        return os.path.isdir(path) and os.stat(path)[stat.ST_INO] == 2
+                                       # TODO: should also test device
+
+    def do_mount_ss(self, refresh):
         "Create mount points for existing snapshots and mount them."
-        if match_fs(self.mp, ['nilfs', 'nilfs2']):
-            self.mount_tmpfs()
-
-        cps = self.ns.lscp()[:]
+        cps = self.ns.lscp(refresh)[:]
         cps.reverse()
         for cp in cps:
             if self.aborting:
                 break
             if cp['ss']:
+                if refresh and self.snapshot_is_mounted(cp):
+                    continue  # skip if the snapshot is mounted
                 self.do_mount(cp)
+
+    def mount_ss(self):
+        """
+        Create mount points for existing snapshots and mount them.  If
+        the mount point is on a nilfs filesystem, this will create a
+        tmpfs on it so that making mount point directories does not
+        trigger further checkpoint creation.
+        """
+        if match_fs(self.mp, ['nilfs', 'nilfs2']):
+            self.mount_tmpfs()
+        self.do_mount_ss(False)
 
     def create_dir(self, path):
         "Check if @path is present, and make the directory if not."
@@ -130,17 +151,14 @@ class NILFSSSManager:
         if match_fs(self.mp, ['tmpfs']):
             self.unmount_tmpfs()
 
-    def do_mount(self, cp, t='date'):
+    def do_mount(self, cp):
         """
         Create a sub-directory with a name based on timestamp @t and
         mount a snapshot given by the checkpoint information @cp on
         the directory.  On success, the sub-directory name will be
         appended to @self.mounts list.
         """
-        target = self.mp
-        if t == 'date':
-            local = time.strftime("%Y.%m.%d-%H.%M.%S", cp['date'])
-            target += '/' + local
+        target = self.snapshot_mount_point(cp)
         cmd = "mount -t nilfs2 -n -o ro,cp=%d" % cp['cno']
         cmd += " " + self.ns.device + " " + target
         self.create_dir(target)
@@ -157,7 +175,7 @@ class NILFSSSManager:
         Get a list of recently created checkpoints, change them into
         snapshots, and mount them.
         """
-        if self.aborting: return
+        if self.aborting or self.passive: return
         cps = self.ns.lscp()[:]
         cps.reverse()
         for cp in cps:
@@ -196,6 +214,13 @@ class NILFSSSManager:
         self.aborting = True
         self.unmount_all()
 
+    def update(self):
+        "Check the new snapshots and mount them if exists"
+        if self.passive:
+            self.do_mount_ss(True)
+        else:
+            self.create_ss()
+
     def clean(self):
         """
         Retrieve a list of snapshot mounts from /proc/mounts and
@@ -206,11 +231,11 @@ class NILFSSSManager:
 
 def do_loop(interval, ss_managers):
     """
-    Callback function to trigger snapshot creation.  This function is called
+    Callback function to trigger snapshot managers.  This function is called
     periodically at intervals of the given @interval.
     """
     for manager in ss_managers:
-        manager.create_ss()
+        manager.update()
     gobject.timeout_add(interval, do_loop, interval, ss_managers)
 
 class NODaemonContext:
@@ -230,8 +255,12 @@ def register_sighandlers(managers, mainloop):
         for m in managers:
             m.shutdown()
         mainloop.quit()
+    def do_update(a,b):
+        for m in managers:
+            m.update()
     signal.signal(signal.SIGINT, do_exit)
     signal.signal(signal.SIGTERM, do_exit)
+    signal.signal(signal.SIGUSR1, do_update)
 
 def check_configuration(conf):
     "Check if the configuration is valid"
@@ -260,10 +289,14 @@ try:
     parser.add_argument("-D", dest='daemonize', action='store_const',
                         default = True, const = False, 
                         help = 'do not daemonize')
+    parser.add_argument("-P", "--passive", dest='passive',
+                        action='store_const', default = False, const = True,
+                        help = 'do not snapshot automatically (passive mode)')
 
     args = parser.parse_args()
     conffile = args.conffile
     daemonize = args.daemonize and not args.clean
+    daemon_options = { 'passive': args.passive }
 
     # Read configuration file written in YAML format.
     conf = yaml.safe_load(open(conffile))
@@ -283,8 +316,9 @@ try:
 
     # Create snapshot managers for every device and mountpoint written
     # in conffile.
-    managers = [NILFSSSManager(nilfs2.NILFS2(device), devices[device], logger)
-                for device in devices] 
+    managers = [NILFSSSManager(nilfs2.NILFS2(device), devices[device], logger,
+                               **daemon_options)
+                for device in devices]
  
     if args.clean:
         # Do cleanup job for every nilfs device if "clean" option is
