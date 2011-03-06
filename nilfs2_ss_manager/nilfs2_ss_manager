@@ -12,6 +12,7 @@
 __author__    = "Jiro SEKIBA"
 __copyright__ = "Copyright (c) 2011 - Jiro SEKIBA <jir@unicus.jp>"
 __license__   = "GPL2"
+__version__   = "0.4.1"
 
 import nilfs2
 import yaml
@@ -50,6 +51,11 @@ class Logger:
 class NILFSConfigurationException(Exception):
     def __init__(self, errors):
         self.errors = errors
+
+class VersionException(Exception):
+    def __init__(self):
+        self.version = ["NILFS snapshot manager v" + __version__,
+                        __copyright__]
 
 def match_fs(path, fsnames):
     """
@@ -292,8 +298,14 @@ try:
     parser.add_argument("-P", "--passive", dest='passive',
                         action='store_const', default = False, const = True,
                         help = 'do not snapshot automatically (passive mode)')
+    parser.add_argument("-V", "--version", dest='show_version',
+                        action='store_const', default = False, const = True,
+                        help = 'show version and exit')
 
     args = parser.parse_args()
+    if args.show_version:
+        raise VersionException()
+
     conffile = args.conffile
     daemonize = args.daemonize and not args.clean
     daemon_options = { 'passive': args.passive }
@@ -337,6 +349,10 @@ try:
             for manager in managers:
                 manager.mount_ss()
             mainloop.run()
+
+except VersionException, e:
+    for version in e.version:
+        logger.out(syslog.LOG_INFO, version)
 
 except NILFSConfigurationException, e:
     # Handle conffile errors

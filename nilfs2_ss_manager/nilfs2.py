@@ -13,6 +13,7 @@
 __author__    = "Jiro SEKIBA"
 __copyright__ = "Copyright (c) 2011 - Jiro SEKIBA <jir@unicus.jp>"
 __license__   = "LGPL"
+__version__   = "0.4.1"
 
 import commands
 import re
