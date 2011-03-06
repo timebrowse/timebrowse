@@ -1,3 +1,6 @@
+nilfs2_ss_manager-v0.4.1  Sun Mar  6 19:48:22 JST 2011
+	* fix misaligned indent for mainloop.run() (Ryusuke Konishi)
+
 nilfs2_ss_manager-v0.4  Sat Mar  5 21:39:41 JST 2011
 	* add clean option to cleanup remaining mount points (Ryusuke Konishi)
 
