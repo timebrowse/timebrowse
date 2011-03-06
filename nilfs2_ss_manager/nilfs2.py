@@ -41,30 +41,47 @@ class NILFS2:
                'ss'  : e[2] == 'ss'}
                for e in a if e[3] != 'i' ]
 
-        if len(a) == 0:
+        if not a:
             return []
 
-        # remove checkpoints that have same date
-        # pick first checkpoint out of the same date
+        # Drop checkpoints that have the same timestamp with its
+        # predecessor.  If a snapshot is present in the series of
+        # coinstantaneous checkpoints, we leave it rather than plain
+        # checkpoints.
         prev = a.pop(0)
-        l = [prev]
+        if not a:
+            return [prev]
+
+        ss = prev if prev['ss'] else None
+        l = []
         for e in a:
             if e['date'] != prev['date']:
-                l.append(e)
+                l.append(ss if ss else prev)
+                ss = None
             prev = e
-
+            if prev['ss']:
+                ss = prev
+        l.append(ss if ss else a[-1])
         return l
 
     def lscp(self):
-        last = self.cps[-1] 
+        last = self.cps[-1]
         cn = last['cno'] + 1
-        result = self.__run_cmd__("lscp -i %d" % cn + " " + self.device)
+        result = self.__run_cmd__("lscp -i %d " % cn + self.device)
 
         l = self.__parse_lscp_output__(result)
+        # Here, we suppose coinstantaneous checkpoints were shrunk both from
+        # l and self.cps.
 
-        # remove checkpoints that have same date of the last checkpoint
-        while (len(l) != 0) and (l[0]['date'] == last['date']):
-            l.pop(0)
+        # Remove the last checkpoint from self.cps if it has the same
+        # timestamp with the head checkpoint of l.
+        if l and l[0]['date'] == last['date']:
+            if last['ss']:
+                # l[0] may be a snapshot, but we select the previous
+                # snapshot because it may be busy.
+                del l[0]
+            else:
+                del self.cps[-1]
 	self.cps += l
 
 	return self.cps
