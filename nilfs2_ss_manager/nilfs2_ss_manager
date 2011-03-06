@@ -256,7 +256,7 @@ try:
             register_sighandlers(managers, mainloop)
             for manager in managers:
                 manager.mount_ss()
-                mainloop.run()
+            mainloop.run()
 
 except NILFSConfigurationExeption, e:
     logger.out(syslog.LOG_ERR, "Configuration error in %s" % conffile)
