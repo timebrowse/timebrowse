@@ -324,11 +324,21 @@ def restore_to(source, dest, confirm_dialog_factory):
 
 def create_list_gui(current, icon_factory):
     nilfs = NILFSMounts()
+
+    def compare_timestamp(model, iter1, iter2, column_id):
+        value1 = model.get_value(iter1, column_id)
+        value2 = model.get_value(iter2, column_id)
+        tm1 = time.mktime(time.strptime(value1, "%x %X"))
+        tm2 = time.mktime(time.strptime(value2, "%x %X"))
+        return cmp(tm1, tm2)
+
     store = gtk.ListStore(gobject.TYPE_STRING,
                           gobject.TYPE_STRING,
                           gobject.TYPE_INT,
                           gobject.TYPE_STRING,)
     store.clear()
+    store.set_sort_func(1, compare_timestamp, 1)
+    store.set_sort_func(3, compare_timestamp, 1)
 
     tree = gtk.TreeView()
     tree.set_rules_hint(True)
@@ -422,7 +432,7 @@ def create_list_gui(current, icon_factory):
             e = gen.next() 
             if e != None:
                 store.append([e['path'],
-                             time.strftime("%Y.%m.%d-%H.%M.%S",
+                             time.strftime("%x %X",
                                            time.localtime(e['mtime'])),
                              e['size'], e['age']])
             glib.idle_add(add_history, gen)
@@ -443,7 +453,7 @@ def create_list_gui(current, icon_factory):
                 pix = icon_factory.cached_pixbuf(e['path'])
                 image.set_from_pixbuf(pix)
                 store.append([e['path'],
-                             time.strftime("%Y.%m.%d-%H.%M.%S",
+                             time.strftime("%x %X",
                                            time.localtime(e['mtime'])),
                              e['size'], e['age']])
                 vbox.remove(searching_history_label)
