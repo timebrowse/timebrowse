@@ -74,9 +74,63 @@ class NILFSSSManager:
         self.mounts = []
         self.aborting = False
         self.passive = 'passive' in options and options['passive']
+        self.cps = self.ns.lscp()
+
+    def __join_cp_list__(self, l, last):
+        # Here, we suppose coinstantaneous checkpoints were shrunk both from
+        # l and self.cps.
+
+        # Remove the last checkpoint from self.cps if it has the same
+        # timestamp with the head checkpoint of l.
+        if l and l[0]['date'] == last['date']:
+            if last['ss']:
+                # l[0] may be a snapshot, but we select the previous
+                # snapshot because it may be busy.
+                del l[0]
+            else:
+                del self.cps[-1]
+        self.cps += l
+
+    def __refresh_cp_cache__(self, l):
+        """
+        Update state of checkpoint information in lscp cache to
+        reflect manual snapshot operations
+        """
+        for cp in self.cps[:]:
+            # Skip checkpoints
+            while l and cp['cno'] > l[0]['cno']:
+                del l[0]
+            if cp['ss']:
+                pass  # Do not update snapshot
+            else:
+                if not l or cp['cno'] < l[0]['cno']:
+                    # The plain checkpoint was deleted
+                    self.cps.remove(cp)
+                else:  # cp['cno'] == l[0]['cno']
+                    if l[0]['ss']:
+                        # A new snapshot found
+                        cp['ss'] = True
+
+        if not self.cps:  # if cp cache became empty
+            self.cps = l
+        else:
+            last = self.cps[-1]
+            while l and l[0]['cno'] <= last['cno']:
+                del l[0]
+            self.__join_cp_list__(l, last)
 
     def lscp(self, refresh=False):
-        cps = self.ns.lscp(refresh)[:]
+        if refresh:
+            idx = self.cps[0]['cno']
+            cps = self.ns.lscp(index=idx)
+            self.__refresh_cp_cache__(cps)
+        else:
+            last = self.cps[-1]
+            idx = last['cno'] + 1
+            cps = self.ns.lscp(index=idx)
+            self.__join_cp_list__(cps, last)
+           
+        cps = self.cps[:] 
         cps.reverse()
         return cps
 
@@ -193,6 +247,7 @@ class NILFSSSManager:
             self.logger.out(syslog.LOG_INFO,
                             "create snapshot: ss = %d" % cp['cno'])
             self.ns.chcp(cp['cno'], True)
+            cp['ss'] = True
             self.do_mount(cp)
 
     def mount_tmpfs(self):

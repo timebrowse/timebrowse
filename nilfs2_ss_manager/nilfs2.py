@@ -25,8 +25,6 @@ class NILFS2:
             r'^ +([1-9]|[1-9][0-9]+) +([^ ]+ [^ ]+) +(ss|cp) +([^ ]+) +.*$',
             re.M)
         self.device = device
-        result = self.__run_cmd__("lscp " + self.device)
-        self.cps = self.__parse_lscp_output__(result)
 
     def __run_cmd__(self, line):
         result = commands.getstatusoutput(line)
@@ -65,90 +63,23 @@ class NILFS2:
         l.append(ss if ss else a[-1])
         return l
 
-    def __join_cp_list__(self, l, last):
-        # Here, we suppose coinstantaneous checkpoints were shrunk both from
-        # l and self.cps.
-
-        # Remove the last checkpoint from self.cps if it has the same
-        # timestamp with the head checkpoint of l.
-        if l and l[0]['date'] == last['date']:
-            if last['ss']:
-                # l[0] may be a snapshot, but we select the previous
-                # snapshot because it may be busy.
-                del l[0]
-            else:
-                del self.cps[-1]
-	self.cps += l
-
-    def __refresh_cp_cache__(self):
-        """
-        Update state of checkpoint information in lscp cache to
-        reflect manual snapshot operations
-        """
-        cn = self.cps[0]['cno']
-        result = self.__run_cmd__("lscp -i %d " % cn + self.device)
-
-        l = self.__parse_lscp_output__(result)
-
-        for cp in self.cps[:]:
-            # Skip checkpoints
-            while l and cp['cno'] > l[0]['cno']:
-                del l[0]
-            if cp['ss']:
-                pass  # Do not update snapshot
-            else:
-                if not l or cp['cno'] < l[0]['cno']:
-                    # The plain checkpoint was deleted
-                    self.cps.remove(cp)
-                else:  # cp['cno'] == l[0]['cno']
-                    if l[0]['ss']:
-                        # A new snapshot found
-                        cp['ss'] = True
-
-        if not self.cps:  # if cp cache became empty
-            self.cps = l
-        else:
-            last = self.cps[-1]
-            while l and l[0]['cno'] <= last['cno']:
-                del l[0]
-            self.__join_cp_list__(l, last)
-
-    def lscp(self, refresh=False):
-        if not self.cps:
-            result = self.__run_cmd__("lscp " + self.device)
-            self.cps = self.__parse_lscp_output__(result)
-        elif refresh:
-            self.__refresh_cp_cache__()
-        else:
-            last = self.cps[-1]
-            cn = last['cno'] + 1
-            result = self.__run_cmd__("lscp -i %d " % cn + self.device)
-            l = self.__parse_lscp_output__(result)
-            self.__join_cp_list__(l, last)
-
-	return self.cps
+    def lscp(self, index=1):
+        result = self.__run_cmd__("lscp -i %d %s" % (index, self.device))
+        return self.__parse_lscp_output__(result)
 
     def chcp(self, cno, ss=False):
         line = "chcp cp "
         if ss:
             line = "chcp ss "
         line += self.device + " %i" % cno
-        result = self.__run_cmd__(line)
-        for cp in self.cps:
-            if cno == cp['cno']:
-                cp['ss'] = ss
-                break
-        self.lscp()
-        return result
+        return self.__run_cmd__(line)
 
     def mkcp(self, ss=False):
         line = "mkcp"
         if ss:
             line += " -s"
         line += " " + self.device
-        result = self.__run_cmd__(line)
-        self.lscp()
-        return result
+        return self.__run_cmd__(line)
 
 if __name__ == '__main__':
     import sys
