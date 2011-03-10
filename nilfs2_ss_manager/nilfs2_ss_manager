@@ -81,7 +81,7 @@ class NILFSSSManager:
     def snapshot_is_mounted(self, cp):
         "Return if the specified checkpoint is mounted or not"
         path = self.snapshot_mount_point(cp)
-        return os.path.isdir(path) and os.stat(path)[stat.ST_INO] == 2
+        return os.path.ismount(path)
                                        # TODO: should also test device
 
     def do_mount_ss(self, refresh):
