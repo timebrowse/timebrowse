@@ -325,20 +325,12 @@ def restore_to(source, dest, confirm_dialog_factory):
 def create_list_gui(current, icon_factory):
     nilfs = NILFSMounts()
 
-    def compare_timestamp(model, iter1, iter2, column_id):
-        value1 = model.get_value(iter1, column_id)
-        value2 = model.get_value(iter2, column_id)
-        tm1 = time.mktime(time.strptime(value1, "%x %X"))
-        tm2 = time.mktime(time.strptime(value2, "%x %X"))
-        return cmp(tm1, tm2)
-
     store = gtk.ListStore(gobject.TYPE_STRING,
+                          gobject.TYPE_INT64,
                           gobject.TYPE_STRING,
                           gobject.TYPE_INT,
                           gobject.TYPE_STRING,)
     store.clear()
-    store.set_sort_func(1, compare_timestamp, 1)
-    store.set_sort_func(3, compare_timestamp, 1)
 
     tree = gtk.TreeView()
     tree.set_rules_hint(True)
@@ -347,17 +339,17 @@ def create_list_gui(current, icon_factory):
 
     rederer = gtk.CellRendererText()
 
-    column = gtk.TreeViewColumn("date", rederer, text=1)
+    column = gtk.TreeViewColumn("date", rederer, text=2)
     column.set_sort_column_id(1)
     column.set_resizable(True)
     tree.append_column(column)
 
-    column = gtk.TreeViewColumn("size", rederer, text=2)
-    column.set_sort_column_id(2)
+    column = gtk.TreeViewColumn("size", rederer, text=3)
+    column.set_sort_column_id(3)
     column.set_resizable(True)
     tree.append_column(column)
 
-    column = gtk.TreeViewColumn("age", rederer, text=3)
+    column = gtk.TreeViewColumn("age", rederer, text=4)
     column.set_sort_column_id(1) # same as date
     column.set_resizable(True)
     tree.append_column(column)
@@ -426,7 +418,7 @@ def create_list_gui(current, icon_factory):
 
     condition = threading.Event()
     def add_list_entry(e):
-        store.append([e['path'],
+        store.append([e['path'], e['mtime'],
                      time.strftime("%x %X",
                                    time.localtime(e['mtime'])),
                      e['size'], e['age']])
