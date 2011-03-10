@@ -75,6 +75,11 @@ class NILFSSSManager:
         self.aborting = False
         self.passive = 'passive' in options and options['passive']
 
+    def lscp(self, refresh=False):
+        cps = self.ns.lscp(refresh)[:]
+        cps.reverse()
+        return cps
+
     def snapshot_mount_point(self, cp):
         return self.mp + '/' + time.strftime("%Y.%m.%d-%H.%M.%S", cp['date'])
 
@@ -86,9 +91,7 @@ class NILFSSSManager:
 
     def do_mount_ss(self, refresh):
         "Create mount points for existing snapshots and mount them."
-        cps = self.ns.lscp(refresh)[:]
-        cps.reverse()
-        for cp in cps:
+        for cp in self.lscp(refresh):
             if self.aborting:
                 break
             if cp['ss']:
@@ -182,9 +185,7 @@ class NILFSSSManager:
         snapshots, and mount them.
         """
         if self.aborting or self.passive: return
-        cps = self.ns.lscp()[:]
-        cps.reverse()
-        for cp in cps:
+        for cp in self.lscp():
             if self.aborting:
                 break
             if cp['ss']:
