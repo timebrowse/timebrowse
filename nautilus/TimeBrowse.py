@@ -425,16 +425,19 @@ def create_list_gui(current, icon_factory):
     open_in_dir_btn.connect("clicked", open_in_dir_button_clicked, tree)
 
     condition = threading.Event()
+    def add_list_entry(e):
+        store.append([e['path'],
+                     time.strftime("%x %X",
+                                   time.localtime(e['mtime'])),
+                     e['size'], e['age']])
+
     def add_history(gen):
         if condition.isSet():
             return
         try:
             e = gen.next() 
             if e != None:
-                store.append([e['path'],
-                             time.strftime("%x %X",
-                                           time.localtime(e['mtime'])),
-                             e['size'], e['age']])
+                add_list_entry(e)
             glib.idle_add(add_history, gen)
 
         except StopIteration:
@@ -452,10 +455,7 @@ def create_list_gui(current, icon_factory):
             else:
                 pix = icon_factory.cached_pixbuf(e['path'])
                 image.set_from_pixbuf(pix)
-                store.append([e['path'],
-                             time.strftime("%x %X",
-                                           time.localtime(e['mtime'])),
-                             e['size'], e['age']])
+                add_list_entry(e)
                 vbox.remove(searching_history_label)
                 vbox.pack_start(frame)
                 vbox.pack_start(hbox, False, False, 5);
