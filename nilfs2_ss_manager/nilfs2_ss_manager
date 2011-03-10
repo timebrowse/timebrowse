@@ -71,7 +71,6 @@ class NILFSSSManager:
         self.ns = nilfs
         self.mp = os.path.realpath(mp)
         self.logger = logger
-        self.mounts = []
         self.aborting = False
         self.passive = 'passive' in options and options['passive']
         self.cps = self.ns.lscp()
@@ -174,9 +173,10 @@ class NILFSSSManager:
         else:
             os.mkdir(path)
 
-    def do_unmount_all(self, busy=[], failed=[]):
+    def do_unmount_all(self, mounts=[], failed=[]):
         "Unmount all snapshots and remove their mount point directories"
-        for mp in self.mounts:
+        busy = []
+        for mp in mounts:
             cmd = 'umount -n %s' % mp
             result = commands.getstatusoutput(cmd)
             if result[0] == 0:
@@ -192,13 +192,12 @@ class NILFSSSManager:
                                 "failed to unmount %s (status=%d)" %
                                 (mp, result[0]))
                 failed.append(mp)
-        self.mounts = busy
+        return busy
 
-    def unmount_all(self):
+    def unmount_all(self, mounts):
         "Unmount all snapshots and retry it a few times for busy snapshots."
-        busy = []
         failed = []
-        self.do_unmount_all(busy, failed)
+        busy = self.do_unmount_all(mounts, failed)
 
         retrycount = 2
         interval = 1
@@ -206,8 +205,7 @@ class NILFSSSManager:
             self.logger.out(syslog.LOG_INFO,
                             "Retrying unmount (wait=%ds)" % interval)
             time.sleep(interval)
-            busy = []
-            self.do_unmount_all(busy, failed)
+            busy = self.do_unmount_all(busy, failed)
             interval <<= 1
             retrycount -= 1
 
@@ -219,7 +217,7 @@ class NILFSSSManager:
         Create a sub-directory with a name based on timestamp @t and
         mount a snapshot given by the checkpoint information @cp on
         the directory.  On success, the sub-directory name will be
-        appended to @self.mounts list.
+        appended as cp['mp'].
         """
         target = self.snapshot_mount_point(cp)
         cmd = "mount -t nilfs2 -n -o ro,cp=%d" % cp['cno']
@@ -229,7 +227,7 @@ class NILFSSSManager:
         if result[0] != 0:
             self.logger.out(syslog.LOG_CRIT, result[1])
             raise Exception(result[1])
-        self.mounts.append(target)
+        cp['mp'] = target
         self.logger.out(syslog.LOG_INFO,
                         "mount ss = %d on %s" % (cp['cno'],target))
 
@@ -261,12 +259,14 @@ class NILFSSSManager:
         commands.getstatusoutput(cmd)
 
     def scan_mounts(self):
-        "Restore mountpoints (self.mounts) from /proc/mounts"
+        "scan mountpoints from /proc/mounts"
         regex = re.compile(
             '^ *([^ ]+) +(' + self.mp +
             '/[^ ]+) +nilfs2 +[^ ]*cp=[\d]+[^ ]* +[^ ]+ +[^ ]+ *$', re.M)
+        mounts = []
         with open("/proc/mounts") as f:
-            self.mounts = [m[1] for m in regex.findall(f.read())]
+            mounts = [m[1] for m in regex.findall(f.read())]
+        return mounts
 
     def shutdown(self):
         """
@@ -274,7 +274,9 @@ class NILFSSSManager:
         and unmount all snapshots.
         """
         self.aborting = True
-        self.unmount_all()
+        mounts = [ cp['mp'] for cp in self.cps
+                   if cp['ss'] and cp.has_key('mp') ]
+        self.unmount_all(mounts)
 
     def update(self):
         "Check the new snapshots and mount them if exists"
@@ -288,8 +290,8 @@ class NILFSSSManager:
         Retrieve a list of snapshot mounts from /proc/mounts and
         unmount them all.
         """
-        self.scan_mounts()
-        self.unmount_all()
+        mounts = self.scan_mounts()
+        self.unmount_all(mounts)
 
 def do_loop(interval, ss_managers):
     """
