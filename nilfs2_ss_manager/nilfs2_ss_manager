@@ -173,31 +173,33 @@ class NILFSSSManager:
         else:
             os.mkdir(path)
 
-    def do_unmount_all(self, mounts=[], failed=[]):
+    def do_unmount(self, mounts=[], failed=[]):
         "Unmount all snapshots and remove their mount point directories"
         busy = []
-        for mp in mounts:
+        for cp in mounts:
+            mp = cp['mp']
             cmd = 'umount -n %s' % mp
             result = commands.getstatusoutput(cmd)
             if result[0] == 0:
+                cp['ss'] = False
                 cmd = 'rmdir %s' % mp
                 commands.getstatusoutput(cmd)
                 self.logger.out(syslog.LOG_INFO, "unmounted %s" % mp)
             elif result[0] == 256:
                 self.logger.out(syslog.LOG_INFO,
                                 "failed to unmount %s (busy)" % mp)
-                busy.append(mp)
+                busy.append(cp)
             else:
                 self.logger.out(syslog.LOG_WARNING,
                                 "failed to unmount %s (status=%d)" %
                                 (mp, result[0]))
-                failed.append(mp)
+                failed.append(cp)
         return busy
 
     def unmount_all(self, mounts):
         "Unmount all snapshots and retry it a few times for busy snapshots."
         failed = []
-        busy = self.do_unmount_all(mounts, failed)
+        busy = self.do_unmount(mounts, failed)
 
         retrycount = 2
         interval = 1
@@ -205,7 +207,7 @@ class NILFSSSManager:
             self.logger.out(syslog.LOG_INFO,
                             "Retrying unmount (wait=%ds)" % interval)
             time.sleep(interval)
-            busy = self.do_unmount_all(busy, failed)
+            busy = self.do_unmount(busy, failed)
             interval <<= 1
             retrycount -= 1
 
@@ -274,9 +276,9 @@ class NILFSSSManager:
         and unmount all snapshots.
         """
         self.aborting = True
-        mounts = [ cp['mp'] for cp in self.cps
-                   if cp['ss'] and cp.has_key('mp') ]
-        self.unmount_all(mounts)
+        cps = [ cp for cp in self.cps
+                if cp['ss'] == True and cp.has_key('mp') ]
+        self.unmount_all(cps)
 
     def update(self):
         "Check the new snapshots and mount them if exists"
@@ -290,7 +292,7 @@ class NILFSSSManager:
         Retrieve a list of snapshot mounts from /proc/mounts and
         unmount them all.
         """
-        mounts = self.scan_mounts()
+        mounts = [ {'mp' : mp } for mp in self.scan_mounts()]
         self.unmount_all(mounts)
 
 def do_loop(interval, ss_managers):
