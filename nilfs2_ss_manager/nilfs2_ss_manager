@@ -73,6 +73,10 @@ class NILFSSSManager:
         self.logger = logger
         self.aborting = False
         self.passive = 'passive' in options and options['passive']
+        self.interval = options['interval']
+        self.threshold = options['threshold']
+        self.protection_period = options['protection_period']
+        self.protection_max = options['protection_max']
         self.cps = self.ns.lscp()
 
     def __join_cp_list__(self, l, last):
@@ -158,9 +162,12 @@ class NILFSSSManager:
         the mount point is on a nilfs filesystem, this will create a
         tmpfs on it so that making mount point directories does not
         trigger further checkpoint creation.
+        Before mounting snapshots, thin out snapshots based on
+        the sparse parameters.
         """
         if match_fs(self.mp, ['nilfs', 'nilfs2']):
             self.mount_tmpfs()
+        self.thin_out_snapshots()
         self.do_mount_ss(False)
 
     def create_dir(self, path):
@@ -250,6 +257,56 @@ class NILFSSSManager:
             cp['ss'] = True
             self.do_mount(cp)
 
+    def __find_landmarks__(self):
+        "find snapshots to be cut out and to be saved."
+        now = time.time()
+        old_list = [cp for cp in self.cps 
+                    if (now - time.mktime(cp['date'])) > self.protection_max and
+                       cp['ss']]
+        cps = [cp for cp in self.cps 
+               if (now - time.mktime(cp['date'])) < self.protection_max and
+                  (now - time.mktime(cp['date'])) > self.protection_period and
+                  cp['ss']]
+        if len(cps) == 0:
+            return [], [] 
+        
+        prev = cps.pop(0)
+        prev_mtime = time.mktime(prev['date'])
+        group_start_mtime = prev_mtime
+      
+        landmarks = []
+        targets = []
+        for cp in cps:
+            mtime = time.mktime(cp['date'])
+            if ((mtime - prev_mtime) > self.interval or 
+                (mtime - group_start_mtime) > self.threshold):
+                landmarks.append(prev)
+                group_start_mtime = mtime
+            else:
+                targets.append(prev)
+            
+            prev = cp
+            prev_mtime = time.mktime(cp['date'])
+        landmarks.append(cps[-1])
+                
+        return landmarks, old_list + targets
+
+    def thin_out_snapshots(self):
+        "thin out snapshots based on sparse parapeters"
+        landmarks, targets = self.__find_landmarks__()
+        mounts = []
+        for cp in targets:
+            if self.snapshot_is_mounted(cp):
+                mounts.append(cp)
+            else:
+                self.ns.chcp(cp['cno'])
+                cp['ss'] = False
+
+        busy = self.do_unmount(mounts)
+        for cp in mounts:
+            if not cp['ss']:
+                self.ns.chcp(cp['cno'])
+
     def mount_tmpfs(self):
         "Create a tmpfs mount on @self.mp"
         cmd = 'mount -t tmpfs none ' + self.mp
@@ -281,7 +338,11 @@ class NILFSSSManager:
         self.unmount_all(cps)
 
     def update(self):
-        "Check the new snapshots and mount them if exists"
+        """
+        Thin out the old snapshots, then
+        check the new snapshots and mount them if exists.
+        """
+        self.thin_out_snapshots()
         if self.passive:
             self.do_mount_ss(True)
         else:
@@ -337,6 +398,19 @@ def check_configuration(conf):
         elif not conf[key]:
             errors.append("'%s' key has no value" % key)
 
+    # set default sparse parapeters if not configured
+    if not 'landmark_interval' in conf:
+        conf['landmark_interval'] = 60
+
+    if not 'landmark_threshold' in conf:
+        conf['landmark_threshold'] = 600
+
+    if not 'protection_period' in conf:
+        conf['protection_period'] = 3600
+
+    if not 'protection_max' in conf:
+        conf['protection_max'] = 60*60*24*365
+
     if len(errors) > 0:
         raise NILFSConfigurationException(errors)
 
@@ -368,7 +442,6 @@ try:
 
     conffile = args.conffile
     daemonize = args.daemonize and not args.clean
-    daemon_options = { 'passive': args.passive }
 
     # Read configuration file written in YAML format.
     conf = yaml.safe_load(open(conffile))
@@ -376,6 +449,12 @@ try:
 
     devices = conf['devices']
     period = conf['period']
+
+    daemon_options = { 'passive': args.passive, 
+                       'interval': conf['landmark_interval'],
+                       'threshold': conf['landmark_threshold'],
+                       'protection_period': conf['protection_period'],
+                       'protection_max': conf['protection_max']}
 
     # Set up a daemon context. If no daemonize option is specfied, a
     # dummy context (NODaemonContext) will be used.
