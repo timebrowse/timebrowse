@@ -293,7 +293,7 @@ class NILFSSSManager:
         return landmarks, old_list + targets
 
     def thin_out_snapshots(self):
-        "thin out snapshots based on sparse parapeters"
+        "thin out snapshots based on sparse parameters"
         landmarks, targets = self.__find_landmarks__()
         mounts = []
         for cp in targets:
@@ -399,7 +399,7 @@ def check_configuration(conf):
         elif not conf[key]:
             errors.append("'%s' key has no value" % key)
 
-    # set default sparse parapeters if not configured
+    # set default sparse parameters if not configured
     if not 'landmark_interval' in conf:
         conf['landmark_interval'] = 60
 
