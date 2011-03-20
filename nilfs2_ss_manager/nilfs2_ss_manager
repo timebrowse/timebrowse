@@ -449,6 +449,9 @@ try:
     parser.add_argument("-p", "--pidfile", dest='pidfile',
                         metavar = 'pid-file',
                         help = 'pid file')
+    parser.add_argument("-v", "--verbose", dest='verbose',
+                        action='store_const', default = False, const = True, 
+                        help = 'verbose mode')
     parser.add_argument("-C", "--clean", dest='clean', action='store_const',
                         default = False, const = True,
                         help = 'manually unmount all snapshots')
@@ -474,7 +477,9 @@ try:
     check_configuration(conf)
 
     # Set log priority
-    priomask = syslog.LOG_UPTO(parse_log_priority(conf['log_priority']))
+    logprio = (syslog.LOG_DEBUG if args.verbose else
+               parse_log_priority(conf['log_priority']))
+    priomask = syslog.LOG_UPTO(logprio)
     logger.setlogmask(priomask)
 
     devices = conf['devices']
