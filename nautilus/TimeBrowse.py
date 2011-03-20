@@ -286,7 +286,7 @@ def confirm_dialog_factory(icon_factory):
             t = "directory"
 
         message = "There is already a %s with the same name" % t
-        message += " in the Desktop.\n"
+        message += " in the destination folder.\n"
         message += "Replace it?"
         label = gtk.Label(message)
 
