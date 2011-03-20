@@ -163,11 +163,12 @@ class NILFSSSManager:
         tmpfs on it so that making mount point directories does not
         trigger further checkpoint creation.
         Before mounting snapshots, thin out snapshots based on
-        the sparse parameters.
+        the sparse parameters if not passive mode.
         """
         if match_fs(self.mp, ['nilfs', 'nilfs2']):
             self.mount_tmpfs()
-        self.thin_out_snapshots()
+        if not self.passive:
+            self.thin_out_snapshots()
         self.do_mount_ss(False)
 
     def create_dir(self, path):
@@ -339,13 +340,13 @@ class NILFSSSManager:
 
     def update(self):
         """
-        Thin out the old snapshots, then
+        Thin out the old snapshots if not passive, then
         check the new snapshots and mount them if exists.
         """
-        self.thin_out_snapshots()
         if self.passive:
             self.do_mount_ss(True)
         else:
+            self.thin_out_snapshots()
             self.create_ss()
 
     def clean(self):
