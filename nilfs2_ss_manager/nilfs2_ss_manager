@@ -29,14 +29,26 @@ import commands
 import syslog
 import signal
 
+log_priorities = [ 'emerg', 'alert', 'crit', 'err', 'warning', 'notice',
+                   'info', 'debug' ]
+
+def parse_log_priority(name):
+    return log_priorities.index(name) if name in log_priorities else -1
+
 class Logger:
     "A simple logger class which can redirect the output"
-    def __init__(self, indent=False):
+    def __init__(self, indent=False,
+                 priomask=syslog.LOG_UPTO(syslog.LOG_INFO)):
         if indent:
             self.__indent__ = indent
             self.out = self.syslog_out
         else:
             self.out = self.stderr_out
+        self.setlogmask(priomask)
+
+    def setlogmask(self, priomask):
+        self.priomask = priomask
+        syslog.setlogmask(priomask)
 
     def syslog_out(self, prio, string):
         "Write a given string to syslog"
@@ -46,7 +58,8 @@ class Logger:
 
     def stderr_out(self, prio, string):
         "Print a given string to the standard error output"
-        print >> sys.stderr, string
+        if (syslog.LOG_MASK(prio) & self.priomask):
+            print >> sys.stderr, string
 
 class NILFSConfigurationException(Exception):
     def __init__(self, errors):
@@ -414,6 +427,13 @@ def check_configuration(conf):
     if not 'protection_max' in conf:
         conf['protection_max'] = 60*60*24*365
 
+    # Check log priority
+    if 'log_priority' in conf:
+        if parse_log_priority(conf['log_priority']) < 0:
+            errors.append("unknown log priority: " + conf['log_priority'])
+    else:
+        conf['log_priority'] = 'notice'
+
     if len(errors) > 0:
         raise NILFSConfigurationException(errors)
 
@@ -453,6 +473,10 @@ try:
     conf = yaml.safe_load(open(conffile))
     check_configuration(conf)
 
+    # Set log priority
+    priomask = syslog.LOG_UPTO(parse_log_priority(conf['log_priority']))
+    logger.setlogmask(priomask)
+
     devices = conf['devices']
     period = conf['period']
 
@@ -469,7 +493,7 @@ try:
         pidfile = args.pidfile if args.pidfile else conf['pidfile']
         dc = daemon.DaemonContext(
                     pidfile=daemon.pidlockfile.PIDLockFile(pidfile))
-        logger = Logger(sys.argv[0])
+        logger = Logger(sys.argv[0], priomask=priomask)
 
     # Create snapshot managers for every device and mountpoint written
     # in conffile.
