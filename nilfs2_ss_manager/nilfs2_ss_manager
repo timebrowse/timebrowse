@@ -426,6 +426,9 @@ try:
                         default = '/etc/nilfs_ss.conf',
                         metavar = 'config',
                         help = 'config file')
+    parser.add_argument("-p", "--pidfile", dest='pidfile',
+                        metavar = 'pid-file',
+                        help = 'pid file')
     parser.add_argument("-C", "--clean", dest='clean', action='store_const',
                         default = False, const = True,
                         help = 'manually unmount all snapshots')
@@ -463,7 +466,7 @@ try:
     # dummy context (NODaemonContext) will be used.
     dc = NODaemonContext()
     if daemonize:
-        pidfile = conf['pidfile']
+        pidfile = args.pidfile if args.pidfile else conf['pidfile']
         dc = daemon.DaemonContext(
                     pidfile=daemon.pidlockfile.PIDLockFile(pidfile))
         logger = Logger(sys.argv[0])
