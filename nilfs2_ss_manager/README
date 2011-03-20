@@ -35,3 +35,7 @@ Run:
     the manager, you can clean up those with '-C' option.
 
     # nilfs2_ss_manager -C
+
+    If you want manage snapshots by yourself (ex. by cron schedule),
+    you can use passive mode with '-P' opiton.  On passive mode,
+    manager won't thin out snapshots (sparse parameters are just ignored).

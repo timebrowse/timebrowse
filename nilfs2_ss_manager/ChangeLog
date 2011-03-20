@@ -1,3 +1,7 @@
+nilfs2_ss_manager-v0.5  Sun Mar 20 18:17:57 JST 2011
+	* add passive mode (Ryusuke Konishi)
+	* add sparse snapshot functionality
+
 nilfs2_ss_manager-v0.4.1  Sun Mar  6 19:48:22 JST 2011
 	* fix misaligned indent for mainloop.run() (Ryusuke Konishi)
 

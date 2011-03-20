@@ -1,3 +1,6 @@
+TimeBrowse-v0.5  Sun Mar 20 18:17:57 JST 2011
+	* print timestamps in locale dependent format (Ryusuke Konishi)
+
 TimeBrowse-v0.4  Sat Mar  5 21:39:41 JST 2011
 	* asynchronous history search
 	* add open in directory button
