@@ -1,0 +1,8 @@
+# Defaults for nilfs initscript
+# sourced by /etc/init.d/nilfs
+#
+# This is a POSIX shell fragment
+#
+
+# Snapshot manager configuration
+#SSM_OPTS="-v"

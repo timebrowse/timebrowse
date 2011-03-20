@@ -1,0 +1,87 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          nilfs
+# Required-Start:    $syslog $local_fs
+# Required-Stop:     $syslog $local_fs
+# Should-Start:
+# Should-Stop:
+# X-Start-Before:
+# X-Start-After:
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Nilfs init script
+# Description:       This script initiates or shuts down snapshot manager.
+### END INIT INFO
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+
+if test -f /etc/default/nilfs; then
+    . /etc/default/nilfs
+fi
+
+umask 022
+
+. /lib/lsb/init-functions
+
+RET=0
+
+# /etc/init.d/nilfs: start and stop the nilfs snapshot manager
+
+SSM_DAEMON=/usr/local/bin/nilfs2_ss_manager
+SSM_DESC="NILFS snapshot manager"
+SSM_NAME=$(basename $SSM_DAEMON)
+SSM_CONF=/etc/nilfs_ss.conf
+SSM_PIDFILE=/var/run/${SSM_NAME}.pid
+SSM_OPTS="$SSM_OPTS --pidfile $SSM_PIDFILE"
+SSM_RETRY_SCHEDULE=TERM/2/4/8/16/32/64/KILL/2/4/8
+
+test -x $SSM_DAEMON || exit 0
+
+if [ -n "$2" ]; then
+    SSM_OPTS="$SSM_OPTS $2"
+fi
+
+usage() {
+    log_success_msg "Usage: $0 {start|stop|restart|force-reload|status|clean}"
+}
+
+case "$1" in
+    start)
+	if [ -f $SSM_CONF ]; then
+	    log_daemon_msg "Starting $SSM_DESC"
+	    start-stop-daemon --start --quiet -oknodo --pidfile $SSM_PIDFILE --exec $SSM_DAEMON -- $SSM_OPTS
+	    log_end_msg $? || RET=1
+	fi
+	;;
+    stop)
+	if [ -f $SSM_CONF ]; then
+	    log_daemon_msg "Stopping $SSM_DESC"
+	    start-stop-daemon --stop --quiet -oknodo --retry $SSM_RETRY_SCHEDULE --pidfile $SSM_PIDFILE
+	    log_end_msg $? || RET=1
+	fi
+	;;
+    restart|force-reload)
+	$0 stop && sleep 2 && $0 start
+	;;
+    status)
+	status_of_proc -p $SSM_PIDFILE $SSM_DAEMON $SSM_NAME &&
+	exit 0 || RET=$?
+	;;
+    clean)
+	if pidofproc -p $SSM_PIDFILE $SSM_DAEMON >/dev/null; then
+	    log_failure_msg "$SSM_NAME is alive.  Please shut it down first."
+	    exit 1
+	else
+	    rm -f "$SSM_PIDFILE" "$SSM_PIDFILE.lock"
+	fi
+	log_action_begin_msg "Detaching remaining snapshots"
+	$SSM_DAEMON -C
+	log_action_end_msg $? || RET=1
+	;;
+    *)
+	usage
+	RET=1
+	;;
+esac
+
+exit $RET
