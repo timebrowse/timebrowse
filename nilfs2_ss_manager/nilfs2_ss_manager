@@ -186,6 +186,9 @@ class NILFSSSManager:
         busy = []
         for cp in mounts:
             mp = cp['mp']
+            if not os.path.ismount(mp):
+                self.logger.out(syslog.LOG_INFO, "%s not mounted" % mp)
+                continue  # ignore already unmounted mountpoints
             cmd = 'umount -n %s' % mp
             result = commands.getstatusoutput(cmd)
             if result[0] == 0:
