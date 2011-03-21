@@ -190,8 +190,7 @@ class NILFSSSManager:
             result = commands.getstatusoutput(cmd)
             if result[0] == 0:
                 cp['ss'] = False
-                cmd = 'rmdir %s' % mp
-                commands.getstatusoutput(cmd)
+                os.rmdir(mp)
                 self.logger.out(syslog.LOG_INFO, "unmounted %s" % mp)
             elif result[0] == 256:
                 self.logger.out(syslog.LOG_INFO,
