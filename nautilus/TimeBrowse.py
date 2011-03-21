@@ -31,16 +31,45 @@ import evince
 import sx.pisa3 as pisa
 
 class NILFSException(Exception):
+    "A private exception class to pass error information"
     def __init__(self, info):
         Exception.__init__(self,info)
 
 class NILFSMounts:
+    "NILFS Snapshot enumerator class"
     def __init__(self):
         self.nilfs_entry_regex = re.compile('^ *([^ ]+) +([^ ]+) +nilfs2 +([^ ]+) +([^ ]+) +([^ ]+) *$', re.M)
         self.cp_regex = re.compile('.*cp=.*')
         self.nilfs_cp_entry_regex = re.compile('^ *([^ ]+) +([^ ]+) +nilfs2 +([^ ]*cp=([\d]+)[^ ]*) +([^ ]+) +([^ ]+) *$', re.M)
 
     def find_nilfs_in_mtab(self):
+        """
+        List all mount points of NILFS snapshots which appear in
+        /proc/mounts.  This method first finds NILFS volumes in
+        /etc/mtab, then enumerates all snapshot mounts for each NILFS
+        volume by using /proc/mounts.
+
+        On success, a list of mount point dictionaries will be
+        returned in the following form:
+
+          [ { 'dev': <device name>,
+              'mp': <pathname of mount point>,
+              'cps': [ <cpinfo-a>, <cpinfo-b>, <cpinfo-c>, ... ]},
+             ...  ]
+
+        where each <cpinfo-?> represents a checkpoint information,
+        which is a tuple (a pair) consisting of a path name and a
+        checkpoint number for each snapshot mount.
+
+        The device names and path names in the dictionaries are
+        normalized.  The list entries of NILFS volume are sorted with
+        their mountpoint path names so that shorter path names come
+        before longer ones.  The cpinfo entries are also sorted with
+        checkpoint numbers so that smaller checkpoints number come
+        before larger ones.
+
+        On error, this method will raise a NILFSException exception.
+        """
         with open("/etc/mtab") as f:
             entries = self.nilfs_entry_regex.findall(f.read())
 
@@ -78,6 +107,12 @@ class NILFSMounts:
         return actives
 
     def find_nilfs_mounts(self, realpath):
+        """
+        Find a NILFS volume whose mount point starts with the given
+        path name and return a dictionary containing information of
+        the NILFS volume and associated snapshot mounts in the form
+        explained in the docstring of find_nilfs_in_mtab() method.
+        """
         mount_list = self.find_nilfs_in_mtab()
         for e in mount_list:
             if realpath.startswith(e['mp']):
@@ -112,6 +147,11 @@ class NILFSMounts:
         return self.age_repr(y, "year")
 
     def get_dir_info(self, directory):
+        """
+        Return update time and size of a directory.  The update time
+        is currently calculated as the latest mtime of the directory
+        and its child nodes.
+        """
         stat = os.stat(directory)
         newest = stat.st_mtime
         size = stat.st_size
@@ -122,6 +162,11 @@ class NILFSMounts:
         return (newest, size)
 
     def get_file_info(self, path):
+        """
+        Return mtime and size of a node.  For directories, this calls
+        get_dir_info method.  For symlinks, this returns mtime and
+        size of the symlink itself.
+        """
         if os.path.isdir(path) and not os.path.islink(path):
             return self.get_dir_info(path)
         else:
@@ -129,6 +174,15 @@ class NILFSMounts:
             return (stat.st_mtime, stat.st_size)
   
     def list_history(self, cps, relpath):
+        """
+        Make a version list entry of the given object with a relative
+        path @relpath, and return it in a coroutine manner.
+
+        The version list entry is a dictionary in the following form:
+
+          { 'path': <pathname>, 'mtime': <mtime>, 'size': <filesize>,
+            'age': <string representing age of the object> }
+        """
         current_time = time.time()
         last_mtime = current_time
         unyield_count = 0
@@ -148,6 +202,10 @@ class NILFSMounts:
             unyield_count += 1
 
     def get_history(self, path):
+        """
+        Get a version list entry of the object on @path if it's stored
+        in a nilfs volume.
+        """
         try:
             realpath = os.path.realpath(path)
             mounts = self.find_nilfs_mounts(realpath)
