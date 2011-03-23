@@ -412,10 +412,17 @@ def create_list_gui(current, icon_factory):
     column.set_resizable(True)
     tree.append_column(column)
 
+    tree.enable_model_drag_source(gtk.gdk.BUTTON1_MASK,
+                                  [('text/uri-list', 0, 1)],
+                                   gtk.gdk.ACTION_COPY)
+    def get_drag_data(tv, context, selection, target_id, etime):
+        path = get_selected_path(tv)
+        selection.set_uris(["file://%s" % path])
+    tree.connect("drag_data_get", get_drag_data)
+
     def double_clicked(treeview, path, view_column, user):
         path = get_selected_path(treeview)
         open_with(path)
-
     tree.connect("row-activated", double_clicked, None)
 
     scroll = gtk.ScrolledWindow()
