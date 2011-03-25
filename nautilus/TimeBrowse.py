@@ -221,7 +221,7 @@ class NILFSMounts:
         return None
 
 class PixbufFactory:
-    def __init__(self, font_size=48, font_path=None):
+    def __init__(self, font_size=24, font_path=None):
         self.font_size = font_size
         self.font = font_path
         self.thumbnail_cache = {}
@@ -291,13 +291,8 @@ class PixbufFactory:
         return pix
 
     def cached_pixbuf(self, path):
-        if self.thumbnail_cache.has_key(path):
-            return self.thumbnail_cache[path]
-        pix = self.create_pixbuf(path)
-        w= 100.;
-        h = pix.get_height() * w/ pix.get_width()
-        self.thumbnail_cache[path] = pix.scale_simple(int(w), int(h),
-                                                      gtk.gdk.INTERP_BILINEAR)
+        if not self.thumbnail_cache.has_key(path):
+            self.thumbnail_cache[path] = self.create_pixbuf(path)
         return self.thumbnail_cache[path]
 
     def icon_pixbuf(self, path):
@@ -380,6 +375,25 @@ def restore_to(source, dest, confirm_dialog_factory):
         line = "rsync -ax --delete --inplace '%s' '%s'" % (source, target)
         result = commands.getstatusoutput(line)
 
+def fit_to_widget(pix, widget):
+    w = pix.get_width()
+    h = pix.get_height()
+    ww = widget.allocation.width
+    wh = widget.allocation.height
+    if ww == 0 or wh == 0:
+       ww = wh = 320
+    if h * float(ww)/float(w) <= wh:
+        destw = ww
+        desth = int(h * float(ww)/float(w))
+        if desth <= 0:
+            desth = 1
+    else:
+        desth = wh
+        destw = int(w * float(wh)/float(h))
+        if destw <= 0:
+            destw = 1
+    return pix.scale_simple(destw, desth, gtk.gdk.INTERP_BILINEAR)
+
 def create_list_gui(current, icon_factory):
     nilfs = NILFSMounts()
 
@@ -431,6 +445,7 @@ def create_list_gui(current, icon_factory):
     frame = gtk.Frame("History")
     frame.set_shadow_type(gtk.SHADOW_ETCHED_IN)
     frame.add(scroll)
+    frame.set_size_request(-1,150) #default height
 
     vbox = gtk.VBox(False, 0)
     searching_history_label = gtk.Label("searching history..")
@@ -447,17 +462,22 @@ def create_list_gui(current, icon_factory):
     hbox.pack_end(bbox, False, False, 10);
 
     image = gtk.Image()
-    hbox.pack_start(image, False, False, 20);
-
-    #will be added in add_first_history() bellow
-    #vbox.pack_start(frame)
-    #vbox.pack_start(hbox, False, False, 5);
+    image.w = image.h = 0
+    hbox.pack_start(image, True, True, 0);
+    def expose_image(w, e):
+        if (w.allocation.width == image.w and
+            w.allocation.height == image.h):
+            return
+        image.w = w.allocation.width 
+        image.h = w.allocation.height
+        image.set_from_pixbuf(fit_to_widget(image.original, image))
+    image.connect("expose-event", expose_image)
 
     def row_selected(treeview, user):
         path = get_selected_path(treeview)
         if path != False:
-            pix = icon_factory.cached_pixbuf(path)
-            image.set_from_pixbuf(pix)
+            image.original = icon_factory.cached_pixbuf(path)
+            image.set_from_pixbuf(fit_to_widget(image.original, image))
     tree.connect("cursor-changed", row_selected, None)
 
     def copy_to_desktop_button_clicked(widget, info):
@@ -510,13 +530,17 @@ def create_list_gui(current, icon_factory):
             if e == None:
                 glib.idle_add(add_first_history, gen)
             else:
-                pix = icon_factory.cached_pixbuf(e['path'])
-                image.set_from_pixbuf(pix)
+                image.original = icon_factory.cached_pixbuf(e['path'])
+                image.set_from_pixbuf(fit_to_widget(image.original, image))
                 add_list_entry(e)
+
                 vbox.remove(searching_history_label)
-                vbox.pack_start(frame)
-                vbox.pack_start(hbox, False, False, 5);
+                vpaned = gtk.VPaned()
+                vpaned.add1(frame)
+                vpaned.add2(hbox)
+                vbox.pack_start(vpaned)
                 vbox.show_all()  
+
                 glib.idle_add(add_history, gen)
 
         except StopIteration:
