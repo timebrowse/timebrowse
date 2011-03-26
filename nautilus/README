@@ -5,9 +5,9 @@ This extension is meant to be used with the Nautilus File Manager,
 Requirements:
     * nautilus
     * nautilus-python (python-nautilus in Debian/Ubuntu)
-    * pisa (python-pisa in Debian/Ubuntu)
-    * python-evince
     * rsync
+    * unoconv
+    * pdftoppm(included in poppler-utils in Debian/Ubuntu)
 
 To install:
     To install for all users, copy TimeBrowse.py to:
@@ -22,15 +22,18 @@ To install:
         $ nautilus -q
         $ nohup nautilus > /dev/null &
 
-Known Issue:
-    * Thumbnail for Japanese(may other Asians) plain text is not proper.
-      This is the font problem.  You can hack the problem by
-      specifying truetype font path in TimeBrowse.py, like following:
+Usage:
+    * if you run nautilus other than UTF-8 locale,  like C or POSIX
+      you'd better to specify locale to generate thumbnail like following:
 
 > class NILFS2PropertyPage(nautilus.PropertyPageProvider):
 >    def __init__(self):
->        self.factory = PixbufFactory(font_path="/usr/share/fonts/truetype/ttf-japanese-gothic.ttf")
+>        self.factory = PixbufFactory(lang="ja_JP.UTF-8")
 >
 >    def get_property_pages(self, files):
 
-      Still, only UTF-8 encoded texts are supported so far.
+    but usually you don't need to specify
+
+Known Issue:
+    * a bit slow to create thumbnail
+

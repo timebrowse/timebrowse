@@ -26,9 +26,6 @@ import time
 import gio
 import tempfile
 import threading
-import xml.sax.saxutils
-import evince
-import sx.pisa3 as pisa
 
 class NILFSException(Exception):
     "A private exception class to pass error information"
@@ -221,55 +218,67 @@ class NILFSMounts:
         return None
 
 class PixbufFactory:
-    def __init__(self, font_size=24, font_path=None):
-        self.font_size = font_size
-        self.font = font_path
+    def __init__(self, lang=None):
         self.thumbnail_cache = {}
+        self.pdf = re.compile('.*PDF.*')
+        server = "unoconv --listener"
+        if lang:
+            server = "LANG=%s %s" % (lang, server)
+        os.system(server + " &")
 
     def create_thumbnail_pixbuf(self, path):
-        css  = '<style type="text/css">\n'
-        if self.font != None:
-            css += '@font-face {\n'
-            css += '  font-family: gothic;\n'
-            css += '  src: url(%s);\n' % self.font
-            css += '}\n'
-        css += '@page {\n'
-        css += '  size: letter;\n'
-        css += '}\n'
-        css += 'pre {\n'
-        css += '  font-family: gothic;\n'
-        css += '  font-size: %spx;\n' % self.font_size
-        css += '}\n'
-        css += '</style>'
-
-        meta = '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />'
-
-        try:
-            document = evince.document_factory_get_document("file://" + path)
-        except glib.GError:
-            res = commands.getstatusoutput("file " + path + "| cut -d: -f 2")
-            text = re.compile(" text( |$)")
-            image = re.compile(" image( |,)")
-            if text.search(res[1]) != None:
-                fd = open(path)
-                contents = fd.read(1024) #generante first page only
-                data = css + meta + '<pre>\n' + \
-                       xml.sax.saxutils.escape(contents) + '\n</pre>'
-                fd.close()
-                fd = tempfile.NamedTemporaryFile('wb', -1, '.pdf',
-                                                 'tb', delete=False)
-                pisa.CreatePDF(data, fd)
-                fd.close()
-                f = os.path.abspath(fd.name)
-                document = evince.document_factory_get_document("file://" + f)
-                os.remove(f)
-            elif image.search(res[1]) != None:
-                return gtk.gdk.pixbuf_new_from(path)
-            else:
+        mime = gio.content_type_guess(path)
+        if mime == "application/pdf":
+            pdf = path
+        elif mime.startswith("image/"):
+            return gtk.gdk.pixbuf_new_from_file(path)
+        elif mime.startswith("text/"):
+            pdf = self.topdf(path)
+        elif mime.startswith("application/vnd.oasis.opendocument"):
+            #openoffice documents
+            pdf = self.topdf(path)
+        elif mime.startswith("application/vnd.openxmlformats-officedocument"):
+            #ooxml documents
+            pdf = self.topdf(path)
+        elif (mime.startswith("application/vnd.ms-powerpoint") or
+              mime.startswith("application/vnd.ms-excel") or
+              mime.startswith("application/vnd.ms-word") ):
+            #MS Office documents (non ooxml formats)
+            pdf = self.topdf(path)
+        else:
+            m = commands.getstatusoutput("file %s" % path)
+            if m[0] != 0 or not re.match(".* text.*", m[1]):
+                print >> sys.stderr, "mime type: %s" % mime
+                print >> sys.stderr, "magic: %s" % m[1]
                 return None
+            pdf = self.topdf(path)
 
-        context = evince.RenderContext(document.get_page(0), 0, 1)
-        return evince.DocumentThumbnails.get_thumbnail(document, context, 1)
+        pix = None
+        if pdf:
+            ppm = self.pdftoppm(pdf)
+            if pdf != path:
+                os.unlink(pdf)
+            if ppm:
+                pix = gtk.gdk.pixbuf_new_from_file(ppm)
+                os.unlink(ppm)
+
+        return pix
+
+    def __execute_cmd__(self, cmd):
+        tmp = tempfile.NamedTemporaryFile(delete=False)
+        ret = commands.getstatusoutput(cmd + " > " + tmp.name)
+        if not ret[0] == 0:
+            os.unlink(tmp.name)
+            return None
+        return tmp.name
+
+    def topdf(self, path):
+        cmd = "unoconv --stdout %s" % path
+        return self.__execute_cmd__(cmd)
+
+    def pdftoppm(self, path, page=1):
+        cmd = "pdftoppm -f %d -l %d %s" % (page, page, path)
+        return self.__execute_cmd__(cmd)
 
     def create_pixbuf(self, path):
         pix = self.create_thumbnail_pixbuf(path)
