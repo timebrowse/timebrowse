@@ -1,3 +1,11 @@
+nilfs2_ss_manager-v0.6  Wed Mar 30 19:35:17 JST 2011
+	* ignore already unmounted mountpoint (Ryusuke Konishi)
+	* add pidfile option (Ryusuke Konishi)
+	* add log priority configuration (Ryusuke Konishi)
+	* add verbose option (Ryusuke Konishi)
+	* add init script and default file (Ryusuke Konishi)
+	* add upstart script (Ryusuke Konishi)
+
 nilfs2_ss_manager-v0.5  Sun Mar 20 18:17:57 JST 2011
 	* add passive mode (Ryusuke Konishi)
 	* add sparse snapshot functionality

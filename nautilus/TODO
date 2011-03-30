@@ -1,4 +1,3 @@
 * show any pages of thumbnail of the file
 * show diffs against current
-* copy to anywhere (drag and drop)
 * find history asynchronously (communicate with snapshot manager)

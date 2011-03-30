@@ -17,7 +17,10 @@ Require:
     *  python-setuptools (for installation)
 
 Install:
-    # python setup.py install
+    # make install
+
+    will install python scripts by "python setup.py install" and
+    init or upstart scripts for managing snapshot manager daemon.
 
 Configure:
 
@@ -39,3 +42,12 @@ Run:
     If you want manage snapshots by yourself (ex. by cron schedule),
     you can use passive mode with '-P' opiton.  On passive mode,
     manager won't thin out snapshots (sparse parameters are just ignored).
+
+    or you can simply start from init or upstart.
+    for upstart:
+
+    # start nilfs
+
+    for init srcipt:
+
+    # /etc/init.d/nilfs start

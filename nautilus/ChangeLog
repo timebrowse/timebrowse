@@ -1,3 +1,9 @@
+TimeBrowse-v0.6  Wed Mar 30 19:35:17 JST 2011
+	* drag and drop
+	* scalable thumbnail functionality
+	* remove evince/pisa dependency to create thumbnail
+	* fix confusing prompt in confirm dialog (Ryusuke Konishi)
+
 TimeBrowse-v0.5  Sun Mar 20 18:17:57 JST 2011
 	* print timestamps in locale dependent format (Ryusuke Konishi)
 

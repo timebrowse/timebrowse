@@ -3,7 +3,7 @@ import sys
 
 setup(
   name = 'nilfs2_ss_manager',
-  version = '0.5',
+  version = '0.6',
   author = 'Jiro SEKIBA',
   author_email = 'jir@unicus.jp',
   py_modules = ['nilfs2'],
