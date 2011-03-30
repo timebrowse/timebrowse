@@ -384,24 +384,43 @@ def restore_to(source, dest, confirm_dialog_factory):
         line = "rsync -ax --delete --inplace '%s' '%s'" % (source, target)
         result = commands.getstatusoutput(line)
 
-def fit_to_widget(pix, widget):
-    w = pix.get_width()
-    h = pix.get_height()
-    ww = widget.allocation.width
-    wh = widget.allocation.height
-    if ww == 0 or wh == 0:
-       ww = wh = 320
-    if h * float(ww)/float(w) <= wh:
-        destw = ww
-        desth = int(h * float(ww)/float(w))
-        if desth <= 0:
-            desth = 1
-    else:
-        desth = wh
-        destw = int(w * float(wh)/float(h))
-        if destw <= 0:
-            destw = 1
-    return pix.scale_simple(destw, desth, gtk.gdk.INTERP_BILINEAR)
+class FlexibleImage(gtk.DrawingArea):
+    def __init__(self):
+        gtk.DrawingArea.__init__(self)
+        self.pixbuf = None
+        self.connect("expose-event", self.expose)
+
+    def expose(self, w, e):
+        pix = self.__fit_pixbuf__(self.allocation)
+        x = (self.allocation.width - pix.get_width())/2
+        y = (self.allocation.height - pix.get_height())/2
+
+        ctxt = self.window.cairo_create()
+        ctxt.set_source_pixbuf(pix,x,y)
+        ctxt.paint()
+
+    def set_from_pixbuf(self, pixbuf):
+        self.pixbuf = pixbuf
+        self.queue_draw()
+
+    def __fit_pixbuf__(self, rect):
+        w = self.pixbuf.get_width()
+        h = self.pixbuf.get_height()
+        ww = rect.width
+        wh = rect.height
+        if ww == 0 or wh == 0:
+           ww = wh = 1
+        if h * float(ww)/float(w) <= wh:
+            destw = ww
+            desth = int(h * float(ww)/float(w))
+            if desth <= 0:
+                desth = 1
+        else:
+            desth = wh
+            destw = int(w * float(wh)/float(h))
+            if destw <= 0:
+                destw = 1
+        return self.pixbuf.scale_simple(destw, desth, gtk.gdk.INTERP_BILINEAR)
 
 def create_list_gui(current, icon_factory):
     nilfs = NILFSMounts()
@@ -470,23 +489,14 @@ def create_list_gui(current, icon_factory):
     bbox.pack_end(open_in_dir_btn, False, False, 10);
     hbox.pack_end(bbox, False, False, 10);
 
-    image = gtk.Image()
+    image = FlexibleImage()
     image.w = image.h = 0
     hbox.pack_start(image, True, True, 0);
-    def expose_image(w, e):
-        if (w.allocation.width == image.w and
-            w.allocation.height == image.h):
-            return
-        image.w = w.allocation.width 
-        image.h = w.allocation.height
-        image.set_from_pixbuf(fit_to_widget(image.original, image))
-    image.connect("expose-event", expose_image)
 
     def row_selected(treeview, user):
         path = get_selected_path(treeview)
         if path != False:
-            image.original = icon_factory.cached_pixbuf(path)
-            image.set_from_pixbuf(fit_to_widget(image.original, image))
+            image.set_from_pixbuf(icon_factory.cached_pixbuf(path))
     tree.connect("cursor-changed", row_selected, None)
 
     def copy_to_desktop_button_clicked(widget, info):
@@ -539,8 +549,7 @@ def create_list_gui(current, icon_factory):
             if e == None:
                 glib.idle_add(add_first_history, gen)
             else:
-                image.original = icon_factory.cached_pixbuf(e['path'])
-                image.set_from_pixbuf(fit_to_widget(image.original, image))
+                image.set_from_pixbuf(icon_factory.cached_pixbuf(e['path']))
                 add_list_entry(e)
 
                 vbox.remove(searching_history_label)
